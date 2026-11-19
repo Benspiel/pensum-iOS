@@ -7,11 +7,11 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { radius, spacing, usePensumTheme } from "../../theme";
 import { AppText, Button } from "../../ui";
 import { GOODNOTES_PAD_HTML } from "./host-html.generated";
-import {
-  createIdGenerator, padNextLabel, padProgressLabel, parsePadMessage, type PadRequest, type PadState,
-} from "./protocol";
+import { padNextLabel, padProgressLabel, parsePadMessage, type PadRequest, type PadState } from "./protocol";
+import { HostRequestError } from "./request-queue";
+import { useWebViewChannel } from "./useWebViewChannel";
 
-const nextId = createIdGenerator("pad");
+const PAD_RESTARTED = "Das Zeichenfeld wurde neu gestartet. Nicht gespeicherte Striche sind verloren.";
 
 type Props = {
   visible: boolean;
@@ -26,36 +26,39 @@ type Props = {
 
 export function HandPad({ visible, packed, ink, cloud, onSave, onDelete, onClose }: Props) {
   const { colors } = usePensumTheme();
-  const web = useRef<WebView<unknown>>(null);
-  const waiting = useRef(new Map<string, { ok: (p: unknown) => void; fail: (m: string) => void }>());
-  const [ready, setReady] = useState(false);
   const [state, setState] = useState<PadState | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const onDown = useCallback(() => { setState(null); setInfo(PAD_RESTARTED); setBusy(false); }, []);
+  const onGiveUp = useCallback(() => setInfo("Das Zeichenfeld ist mehrfach abgestürzt. Schließ das Blatt und öffne es neu."), []);
+  const { web, ready, setReady, instance, getQueue, request, handleTerminated } = useWebViewChannel({ idPrefix: "pad", onDown, onGiveUp });
 
-  const send = useCallback((m: PadRequest) => web.current?.postMessage(JSON.stringify(m)), []);
+  const send = useCallback((m: PadRequest) => getQueue().notify(m), [getQueue]);
 
   useEffect(() => { if (visible && ready) send({ type: "init", packed, ink }); }, [visible, ready, packed, ink, send]);
-  useEffect(() => { if (!visible) { setInfo(null); setBusy(false); } }, [visible]);
+  // Beim Schließen verschwindet die WebView (Modal): „bereit“ zurücksetzen, sonst geht das init beim nächsten Öffnen ins Leere
+  useEffect(() => {
+    if (visible) return;
+    setInfo(null); setBusy(false); setReady(false); setState(null);
+    getQueue().abortAll(new HostRequestError("Das Zeichenfeld wurde geschlossen.", "aborted"));
+  }, [visible, setReady, getQueue]);
 
   const onMessage = useCallback((e: WebViewMessageEvent) => {
     const m = parsePadMessage(e.nativeEvent.data);
     if (!m) return;
     if (m.type === "pad-ready") setReady(true);
     else if (m.type === "pad-state") setState(m);
-    else if (m.type === "packed") { waiting.current.get(m.id)?.ok(m.packed); waiting.current.delete(m.id); }
-    else if (m.type === "pad-error") { waiting.current.get(m.id)?.fail(m.message); waiting.current.delete(m.id); if (!m.id) setInfo(m.message); }
-  }, []);
+    else if (m.type === "packed") getQueue().resolve(m.id, m.packed);
+    else if (m.type === "pad-error") { if (m.id) getQueue().reject(m.id, new Error(m.message)); else setInfo(m.message); }
+  }, [getQueue, setReady]);
 
-  function pack(): Promise<unknown> {
-    const id = nextId();
-    return new Promise((ok, fail) => { waiting.current.set(id, { ok, fail: (msg) => fail(new Error(msg)) }); send({ type: "pack", id }); });
-  }
+  // Zeitlimit (20 s) und Abbruch bei Absturz/Schließen über die Queue
+  const pack = () => request({ type: "pack" });
 
   async function save() {
     setBusy(true); setInfo("Wird gespeichert …");
     try { await onSave(await pack()); onClose(); }
-    catch (e) { setInfo(e instanceof Error && e.message.startsWith("Zeichne") ? e.message : "Speichern fehlgeschlagen. Prüfe deine Verbindung und versuch es noch einmal."); }
+    catch (e) { setInfo(e instanceof HostRequestError || (e instanceof Error && e.message.startsWith("Zeichne")) ? (e as Error).message : "Speichern fehlgeschlagen. Prüfe deine Verbindung und versuch es noch einmal."); }
     finally { setBusy(false); }
   }
 
@@ -78,9 +81,10 @@ export function HandPad({ visible, packed, ink, cloud, onSave, onDelete, onClose
         </View>
 
         <View style={[styles.pad, { borderColor: colors.border }]} accessibilityLabel="Zeichenfeld" accessible={false}>
-          <WebView<unknown> ref={web} originWhitelist={["about:*", "data:*"]} source={{ html: GOODNOTES_PAD_HTML, baseUrl: "about:blank" }}
+          <WebView<unknown> key={instance} ref={web} originWhitelist={["about:*", "data:*"]} source={{ html: GOODNOTES_PAD_HTML, baseUrl: "about:blank" }}
             onMessage={onMessage} javaScriptEnabled domStorageEnabled={false} allowFileAccess={false} scrollEnabled={false}
-            bounces={false} overScrollMode="never" style={styles.web} />
+            bounces={false} overScrollMode="never" style={styles.web}
+            onContentProcessDidTerminate={handleTerminated} onRenderProcessGone={handleTerminated} />
         </View>
 
         {info ? <AppText tone={info.startsWith("Wird") ? "muted" : "danger"} accessibilityLiveRegion="polite">{info}</AppText> : null}
