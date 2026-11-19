@@ -2,8 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMemo } from 'react';
 import { type AccountScope, useSession } from '../account/session';
 import { databaseId, ID, listAllRows, ownerPermissions, Query, tableIds, tablesDB } from '../backend';
-import { PensumError } from '../contracts';
-import type { KeyValueStore, RowsApi, StoreDeps } from '../features/shared/ports';
+import { PensumError, type KeyValueStore, type RowsApi, type StoreDeps } from '../contracts';
 
 export const guestStorage: KeyValueStore = {
   getItem: (key) => AsyncStorage.getItem(key),
