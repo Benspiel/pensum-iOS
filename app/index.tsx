@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useMemo, useRef } from 'react';
 import { Animated, Image, Pressable, StyleSheet, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSession } from '../src/account/session';
 import { getToolAvailability, tools, type Tool, type ToolAvailability } from '../src/navigation/tools';
@@ -9,10 +10,9 @@ import { gutter, radius, spacing, squircleRadius, usePensumTheme } from '../src/
 import { AppText, Badge, Button, Card, Screen, SquircleIcon, TintContext } from '../src/ui';
 import { ParallaxBackground } from '../src/ui/ParallaxBackground';
 import { motionFactor } from '../src/ui/parallax';
+import { contentMaxWidth, innerWidth, toolGrid } from '../src/ui/wide';
 
-const BREAKPOINT_GRID = 690;
-const CONTENT_MAX = 760;
-const CARD_GAP = spacing.lg;
+const NAV_MAX = 760;
 const logo = require('../assets/app-icon.png');
 
 export default function HomeScreen() {
@@ -35,16 +35,24 @@ export default function HomeScreen() {
     [scrollY, height],
   );
   const toolsTop = useRef(0);
-  const grid = width >= BREAKPOINT_GRID && fontScale <= 1.25;
-  const cardWidth = (Math.min(width, CONTENT_MAX) - 2 * gutter(width) - CARD_GAP) / 2;
+  // iPad: Der Hintergrund läuft über die ganze Breite, der Inhalt steht in einer mittigen Spalte (bis 1120 pt)
+  const { left, right } = useSafeAreaInsets();
+  const edge = gutter(width);
+  const gap = edge >= 24 ? spacing.xl : spacing.lg;
+  const layout = toolGrid(innerWidth(width, left + right, edge, true), fontScale, gap);
+  const grid = layout.columns > 1;
+  const cardWidth = layout.tileWidth;
+  const column = { maxWidth: contentMaxWidth(width, true), paddingHorizontal: edge };
   const visibleTools = tools
     .map((tool) => ({ tool, availability: getToolAvailability(tool, access) }))
     .filter(({ availability }) => availability !== 'hidden');
   const signedIn = state.status === 'account';
 
   return (
-    <Screen includeTopInset scroll={false} contentStyle={styles.screen}>
-      <NavPill label={signedIn || state.status === 'loading' ? 'Konto' : 'Anmelden'} open={() => router.push('/konto')} />
+    <Screen includeTopInset scroll={false} wide contentStyle={styles.screen}>
+      <View style={[styles.column, column]}>
+        <NavPill label={signedIn || state.status === 'loading' ? 'Konto' : 'Anmelden'} open={() => router.push('/konto')} />
+      </View>
 
       <Animated.ScrollView
         ref={scroller}
@@ -56,33 +64,35 @@ export default function HomeScreen() {
         scrollEventThrottle={16}
       >
         <ParallaxBackground scrollY={scrollY} />
-        <Animated.View style={{ opacity: heroFade, transform: [{ translateY: heroShift }] }}>
-          <Hero
-            accountLabel={state.status === 'guest' ? 'Konto erstellen' : 'Konto'}
-            showTools={() => scroller.current?.scrollTo({ y: Math.max(0, toolsTop.current - spacing.lg), animated: true })}
-            openAccount={() => router.push('/konto')}
-          />
-        </Animated.View>
+        <View style={[styles.column, column]}>
+          <Animated.View style={{ opacity: heroFade, transform: [{ translateY: heroShift }] }}>
+            <Hero
+              accountLabel={state.status === 'guest' ? 'Konto erstellen' : 'Konto'}
+              showTools={() => scroller.current?.scrollTo({ y: Math.max(0, toolsTop.current - spacing.lg), animated: true })}
+              openAccount={() => router.push('/konto')}
+            />
+          </Animated.View>
 
-        <View style={styles.toolSection} onLayout={(event) => { toolsTop.current = event.nativeEvent.layout.y; }}>
-          <AppText variant="h3" accessibilityRole="header">Werkzeuge</AppText>
-          <View style={[styles.list, grid && styles.grid]}>
-            {visibleTools.map(({ tool, availability }) => (
-              <ToolTile
-                key={tool.id}
-                tool={tool}
-                availability={availability}
-                width={grid ? cardWidth : undefined}
-                open={() => router.push(`/tools/${tool.id}`)}
-              />
-            ))}
-            <Card variant="soft" style={[styles.tile, grid && { width: cardWidth }]}>
-              <SquircleIcon tone="soft" symbol={{ ios: 'plus', android: 'add', web: 'add' }} />
-              <AppText variant="h4" accessibilityRole="header">Bald mehr.</AppText>
-              <AppText variant="bodySm" tone="muted">
-                Jedes Tool ist ein eigenes Modul. Neue kommen dazu, deine Anmeldung gilt automatisch auch dort.
-              </AppText>
-            </Card>
+          <View style={styles.toolSection} onLayout={(event) => { toolsTop.current = event.nativeEvent.layout.y; }}>
+            <AppText variant="h3" accessibilityRole="header">Werkzeuge</AppText>
+            <View style={[styles.list, { gap }, grid && styles.grid]}>
+              {visibleTools.map(({ tool, availability }) => (
+                <ToolTile
+                  key={tool.id}
+                  tool={tool}
+                  availability={availability}
+                  width={grid ? cardWidth : undefined}
+                  open={() => router.push(`/tools/${tool.id}`)}
+                />
+              ))}
+              <Card variant="soft" style={[styles.tile, grid && { width: cardWidth }]}>
+                <SquircleIcon tone="soft" symbol={{ ios: 'plus', android: 'add', web: 'add' }} />
+                <AppText variant="h4" accessibilityRole="header">Bald mehr.</AppText>
+                <AppText variant="bodySm" tone="muted">
+                  Jedes Tool ist ein eigenes Modul. Neue kommen dazu, deine Anmeldung gilt automatisch auch dort.
+                </AppText>
+              </Card>
+            </View>
           </View>
         </View>
       </Animated.ScrollView>
@@ -200,10 +210,15 @@ function ToolTile({ tool, availability, width, open }: {
 }
 
 const styles = StyleSheet.create({
-  screen: { paddingTop: spacing.sm, paddingBottom: 0, gap: 0 },
+  // volle Breite: Hintergrund und Scrollfläche gehen bis an den Rand, der Inhalt steht in `column`
+  screen: { paddingTop: spacing.sm, paddingBottom: 0, gap: 0, maxWidth: 4096, paddingHorizontal: 0 },
+  column: { width: '100%', alignSelf: 'center' },
   scroller: { flex: 1 },
   scrollContent: { paddingBottom: spacing.xxxl },
   pill: {
+    width: '100%',
+    maxWidth: NAV_MAX,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -223,7 +238,7 @@ const styles = StyleSheet.create({
   heroSub: { maxWidth: 460 },
   heroActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.md },
   toolSection: { gap: spacing.lg },
-  list: { gap: CARD_GAP },
+  list: {},
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   tile: {
     minHeight: 260,

@@ -64,6 +64,7 @@ import {
   type TextVariant,
   type ThemeChoice,
 } from '../theme';
+import { contentMaxWidth } from './wide';
 
 /* ---------- Text ---------- */
 
@@ -106,15 +107,17 @@ export interface ScreenProps {
   navigationTitle?: string;
   scroll?: boolean;
   includeTopInset?: boolean;
+  /** iPad: darf auf breiten Fenstern (ab 900 pt) bis 1120 pt breit werden statt 760 (nur setzen, wenn der Screen die Breite nutzt, z. B. mit zwei Spalten). */
+  wide?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
 }
 
-export function Screen({ children, title, description, navigationTitle, scroll = true, includeTopInset = false, contentStyle }: ScreenProps) {
+export function Screen({ children, title, description, navigationTitle, scroll = true, includeTopInset = false, wide = false, contentStyle }: ScreenProps) {
   const { colors } = usePensumTheme();
   const { width } = useWindowDimensions();
   const headerTitle = navigationTitle ?? title;
   const contents = (
-    <View style={[styles.contents, { paddingHorizontal: gutter(width) }, !scroll && styles.page, contentStyle]}>
+    <View style={[styles.contents, { paddingHorizontal: gutter(width), maxWidth: contentMaxWidth(width, wide) }, !scroll && styles.page, contentStyle]}>
       {title || description ? (
         <View style={styles.intro}>
           {title ? <AppText variant="h1" accessibilityRole="header">{title}</AppText> : null}
