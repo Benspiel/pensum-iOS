@@ -63,7 +63,7 @@ Pensum ist ein privates Angebot und keine Einrichtung deiner Schule. Nutze die E
 **Schlüsselwörter** (max. 100, durch Komma, ohne Leerzeichen, ohne Markennamen):
 
 ```
-Schule,Noten,Notenrechner,Zeugnis,Karteikarten,Vokabeln,Planer,Hausaufgaben,Klausur,Mindmap,Lernen,Handschrift
+Schule,Noten,Notenrechner,Karteikarten,Vokabeln,Planer,Hausaufgaben,Klausur,Mindmap,Handschrift
 ```
 
 **Was ist neu** (Version 1.0): `Erste Version von Pensum für iPhone und iPad.`
