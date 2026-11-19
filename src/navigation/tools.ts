@@ -2,7 +2,7 @@ import type { SymbolViewProps } from 'expo-symbols';
 
 import { noToolAccess, type ToolAccess } from '../contracts';
 
-// Sichtbarkeit, Reihenfolge und Tool-Namen stammen aus Pensum js/tools.js und js/home.js (770dbe4).
+// Sichtbarkeit und Reihenfolge folgen Pensum js/tools.js und js/home.js (770dbe4). Spiele sind vom iOS-Umfang ausgenommen.
 export const TOOL_ORDER = [
   'goodnotes', 'mindmap', 'kichat', 'aufgaben', 'abschreiben', 'karteikarten',
   'planer', 'videos', 'spiele', 'admin', 'notenrechner',

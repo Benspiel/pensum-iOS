@@ -14,7 +14,7 @@ Web-Referenz: `main` bei `770dbe4e26236e4371126f5fcd2b9ea864b767d3`. Die Web-Sui
 | KI-Chat | Nativ über Appwrite, nur für Ki-Tester, mit Foto/PDF, Klassenstufe und dauerhaftem Verlauf | Server speichert die Chatdaten. Schrittanzeige nur für frische Antworten. Markdown wird vereinfacht angezeigt. Tool mit synthetischem Ki-Tester-Konto abnehmen. |
 | Team | Nativ, nur für Admins und mit serverseitiger Team-Prüfung | Statistik und Nutzungsübersicht als native Listen mit bestehenden Backend-Zahlen. Die App erfasst in diesem Stand keine neuen Werkzeugbesuche. Betriebsdaten mit freigegebenem Admin-Testzugriff prüfen. |
 | Goodnotes-Tool | Siehe [Goodnotes- und Spiele-Plan](b-goodnotes-spiele-plan.md) und den gemeinsamen Abnahmestand | Texteingabe, Handschrift, PDF, `.goodnotes` und Übergaben separat prüfen. |
-| Spiele | Vier gewinnt nativ, nur für das Tester-Team | Asteroids, Dino-Runner, Arcade und Schach sind in iOS offen. Der Stand enthält keine Website-Einbettung. Einzelheiten stehen im [Spiele-Funktionsvergleich](../src/features/spiele/OPEN.md). |
+| Spiele | Auf Wunsch aus dem iOS-Umfang ausgenommen | Das Spielemodul gehört zum getrennten Web-Projekt. |
 
 Die Tests für alle drei Lernwerkzeuge prüfen fehlgeschlagene und wiederholte Gastübernahmen sowie die Weitergabe von Speicherfehlern vor dem Abmelden. Die [Geräte-Testfälle](b-abnahme-testplan.md) ergänzen diese Prüfungen.
 
