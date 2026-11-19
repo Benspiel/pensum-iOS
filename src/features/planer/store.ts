@@ -56,6 +56,8 @@ export interface GuestPlanStore {
   /** true = geschrieben, false = das Gerät hat das Schreiben verweigert */
   save(data: PlanData): Promise<boolean>;
   flush(): Promise<void>;
+  /** Gast: wie flush() (es gibt nichts, das ein Konto verfehlen könnte). */
+  flushOrThrow(): Promise<void>;
   clear(): Promise<void>;
 }
 
@@ -83,6 +85,7 @@ export function createGuestStore(deps: Pick<StoreDeps, "kv" | "onStatus">): Gues
       });
     },
     async flush() { await queue; },
+    async flushOrThrow() { await queue; },
     clear() {
       return serial(async () => { try { await kv.removeItem(GUEST_KEY); } catch (_) { /* egal */ } });
     },
@@ -109,6 +112,11 @@ export interface CloudPlanStore {
   save(data: PlanData): Promise<boolean>;
   /** Alles Ausstehende sofort speichern (vor dem Abmelden und beim Verlassen der App). */
   flush(): Promise<void>;
+  /**
+   * Wie flush(), aber streng (vor dem Abmelden, vor dem Löschen von Gast-Daten): wartet auf alle Schreibvorgänge und
+   * lehnt ab, wenn ein Versuch gescheitert ist oder noch Änderungen ungespeichert sind. Ein früherer Fehler wird dabei einmal neu versucht.
+   */
+  flushOrThrow(): Promise<void>;
   /** Timer stoppen (Abmelden, Kontowechsel). Ausstehendes vorher mit flush() speichern. */
   dispose(): void;
 }
@@ -125,6 +133,16 @@ export function createCloudStore(deps: StoreDeps, user: { $id: string }): CloudP
   let retry: ReturnType<typeof setTimeout> | null = null;
   let running: Promise<void> | null = null;
   let again = false;
+  let failure: { error: unknown } | null = null; // letzter Versuch gescheitert (bis ein Durchlauf gelingt)
+
+  /** Gibt es Einträge, die das Konto (laut letztem bekannten Stand) noch nicht hat? */
+  function unsaved(): boolean {
+    if (!latest) return false;
+    const want = new Set(latest.items.map((i) => i.id));
+    for (const i of latest.items) { const old = synced.get(i.id); if (!old || !same(toRow(i), old)) return true; }
+    for (const id of synced.keys()) if (!want.has(id)) return true;
+    return false;
+  }
 
   async function push(snap: PlanData) {
     const want = new Map(snap.items.map((i) => [i.id, i]));
@@ -137,7 +155,10 @@ export function createCloudStore(deps: StoreDeps, user: { $id: string }): CloudP
     for (const id of [...synced.keys()]) {
       if (!want.has(id)) ops.push(limited(() => rows.deleteRow({ tableId, rowId: id }), { okOn404: true }).then(() => synced.delete(id)));
     }
-    await Promise.all(ops);
+    // alle Schreibvorgänge abwarten, auch wenn einer scheitert (sonst laufen die übrigen unbemerkt weiter)
+    const results = await Promise.allSettled(ops);
+    const bad = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (bad) throw bad.reason;
   }
 
   function sync(): Promise<void> {
@@ -149,8 +170,10 @@ export function createCloudStore(deps: StoreDeps, user: { $id: string }): CloudP
         onStatus("saving");
         try {
           await push(latest);
+          failure = null;
           if (!again && !timer) onStatus("saved");
         } catch (e) {
+          failure = { error: e };
           onStatus("error", e);
           if (retry) clearTimeout(retry);
           retry = setTimeout(() => { void sync(); }, 8000); // später erneut versuchen
@@ -174,6 +197,7 @@ export function createCloudStore(deps: StoreDeps, user: { $id: string }): CloudP
         return item;
       });
       latest = null;
+      failure = null;
       return clean({ items }, () => rows.newId());
     },
     save(data) {
@@ -187,6 +211,14 @@ export function createCloudStore(deps: StoreDeps, user: { $id: string }): CloudP
       if (timer) { clearTimeout(timer); timer = null; }
       if (retry) { clearTimeout(retry); retry = null; }
       if (latest) await sync(); else if (running) await running;
+    },
+    async flushOrThrow() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (retry) { clearTimeout(retry); retry = null; }
+      if (latest) await sync();
+      while (running) await running;
+      if (failure) throw failure.error ?? new Error("Speichern fehlgeschlagen");
+      if (timer || unsaved()) throw new Error("Änderungen sind noch nicht gespeichert");
     },
     dispose() {
       if (timer) { clearTimeout(timer); timer = null; }

@@ -90,6 +90,7 @@ export default function PlanerScreen() {
             item={editing}
             items={items}
             decks={p.decks}
+            today={today}
             onClose={() => setDialog(null)}
             onSubmit={submit}
           />

@@ -14,11 +14,12 @@ import {
   listDeckSummaries,
 } from "../karteikarten";
 import type { SaveStatus, StoreDeps } from "../shared/ports";
-import { mergeGuestItems, todayISO, type ItemKind, type PlanItem } from "./core";
+import { todayISO, type ItemKind, type PlanItem } from "./core";
 import { haptic } from "./haptics";
+import { importGuestItems } from "./import";
 import type { DeckSummary } from "./links";
 import {
-  TEXT, clearDone, dayChanged, importDoneMessage, importPrompt, msUntilNextDay, newItem, removeItem, toggleDone, updateItem,
+  TEXT, clearDone, dayChanged, freshGuestItems, importDoneMessage, importPrompt, msUntilNextDay, newItem, removeItem, toggleDone, updateItem,
   validateQuick, type FormFields,
 } from "./model";
 import { isDeclined, markDeclined } from "./prefs";
@@ -51,7 +52,7 @@ function askImport(count: number): Promise<boolean> {
 }
 
 export function usePlanerController(toast: ShowToast) {
-  const { state: session, refresh } = useSession();
+  const { state: session, refresh, registerBeforeLogout } = useSession();
   const accountId = session.status === "account" ? session.user.id : null;
   const deps = useStoreDeps();
 
@@ -93,15 +94,8 @@ export function usePlanerController(toast: ShowToast) {
     const token = ++tokenRef.current;
     const current = () => tokenRef.current === token;
     let lastStatus: SaveStatus = "saved";
-    let pendingImport = 0; // Anzahl übernommener Gast-Einträge, deren Konto-Speicherung noch bestätigt werden muss
 
     const guest = createGuestStore({ kv: deps.kv }); // im Gast-Modus der Speicher selbst, im Konto nur zum Lesen der lokalen Einträge
-    const settleImport = () => {
-      if (!pendingImport) return;
-      const taken = pendingImport;
-      pendingImport = 0;
-      void guest.clear().then(() => { if (current()) toastRef.current(importDoneMessage(taken)); });
-    };
     const onStatus = (status: SaveStatus, error?: unknown) => {
       if (!current()) return;
       setSaveStatus(status);
@@ -110,24 +104,26 @@ export function usePlanerController(toast: ShowToast) {
         toastRef.current(TEXT.saveFailedToast, { error: true });
       }
       lastStatus = status;
-      if (status === "saved") settleImport(); // Gast-Daten erst löschen, wenn das Konto sie sicher hat
     };
     const store: Store = accountId ? createCloudStore({ ...deps, onStatus }, { $id: accountId }) : guest;
     storeRef.current = store;
     warnedDevice.current = false;
     setPhase("loading"); setSaveStatus("saved"); setItems([]); setDecks([]);
 
-    async function offerImport(id: string) {
+    async function offerImport(id: string, cloud: CloudPlanStore) {
       const local = (await guest.load()).items;
-      if (!local.length || (await isDeclined(deps!.kv, id)) || !current()) return;
-      const ok = await askImport(local.length);
+      if (!local.length || !current()) return;
+      const fresh = freshGuestItems(itemsRef.current, local);
+      if (!fresh.length) { await guest.clear(); return; } // alles liegt schon im Konto (z. B. nach einer unterbrochenen Übernahme)
+      if (await isDeclined(deps!.kv, id) || !current()) return;
+      const ok = await askImport(fresh.length);
       if (!current()) return;
       if (!ok) { await markDeclined(deps!.kv, id); return; }
-      const merged = mergeGuestItems(itemsRef.current, local, () => store.newId());
-      if (merged.taken === 0) { toastRef.current(TEXT.maxQuick, { error: true }); return; }
-      pendingImport = merged.taken;
-      commit(merged.items);
-      await store.flush(); // „Gespeichert“ meldet onStatus; bei einem Fehler wird später erneut versucht und danach erst gelöscht
+      const result = await importGuestItems({ cloud, guest, current: itemsRef.current, local, commit });
+      if (!current()) return;
+      if (result.status === "done") toastRef.current(importDoneMessage(result.taken));
+      else if (result.status === "no-room") toastRef.current(TEXT.maxDialog, { error: true });
+      // "failed": onStatus hat den Fehler gemeldet; die Gast-Einträge bleiben lokal und werden beim nächsten Mal nicht doppelt übernommen
     }
 
     void (async () => {
@@ -138,7 +134,7 @@ export function usePlanerController(toast: ShowToast) {
         setToday(todayISO());
         setPhase("ready");
         void loadDecks(deps, accountId).then((list) => { if (current()) setDecks(list); });
-        if (accountId) await offerImport(accountId);
+        if (store.kind === "cloud" && accountId) await offerImport(accountId, store);
       } catch (error) {
         if (!current()) return;
         console.error(error);
@@ -153,6 +149,10 @@ export function usePlanerController(toast: ShowToast) {
       if (store.kind === "cloud") store.dispose();
     };
   }, [deps, accountId, reloadTick, commit, setItems]);
+
+  /* ---------- Vor dem Abmelden: alles sicher ins Konto (lehnt ab, wenn etwas nicht gespeichert werden konnte) ---------- */
+
+  useEffect(() => registerBeforeLogout(async () => { await storeRef.current?.flushOrThrow(); }), [registerBeforeLogout]);
 
   /* ---------- App-Zustand: speichern im Hintergrund, neuer Tag ---------- */
 
@@ -196,7 +196,7 @@ export function usePlanerController(toast: ShowToast) {
   const toggle = useCallback((id: string) => {
     if (!ready()) return;
     const was = itemsRef.current.find((i) => i.id === id)?.done;
-    haptic(was ? "light" : "medium");
+    haptic(was ? "light" : "success");
     commit(toggleDone(itemsRef.current, id));
   }, [commit]);
 
