@@ -4,12 +4,14 @@
  * Neu gegenüber dem Web: Datumsfeld als Text (parseDateInput / formatDateInput), weil es kein Datumsfeld wie <input type="date"> gibt. */
 import {
   MAX_ITEMS,
+  mergeGuestItems,
   daysUntil,
   dueLabel,
   examCountdown,
   formatDate,
   parseDay,
   stats,
+  todayISO,
   usedSubjects,
   type CountdownState,
   type ItemKind,
@@ -43,6 +45,16 @@ export function formatDateInput(iso: string): string {
   const [y, m, d] = iso.split("-");
   return `${d}.${m}.${y}`;
 }
+
+/** Datum für den Datumswähler: der Wert des Textfelds, sonst `fallback` (heute). Mittags, damit Sommerzeit-Wechsel nie den Tag verschieben. */
+export function pickerDate(text: string, fallback: string): Date {
+  const iso = parseDateInput(text) ?? parseDateInput(fallback) ?? "1970-01-01";
+  const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
+  return new Date(y, m - 1, d, 12, 0, 0, 0);
+}
+
+/** Auswahl des Datumswählers → Text für das Feld ("TT.MM.JJJJ"), nach lokalem Kalendertag. */
+export const textFromPickerDate = (date: Date): string => formatDateInput(todayISO(date));
 
 /* ---------- Texte (Wortlaut aus dem Web) ---------- */
 
@@ -269,6 +281,33 @@ export function importPrompt(count: number) {
     confirm: "Ins Konto übernehmen",
     cancel: "Nicht übernehmen",
   };
+}
+
+/** Schlüssel für „derselbe Eintrag“ bei der Übernahme: Art + Titel + Datum + Fach (ohne Rand-Leerzeichen). */
+export const importKey = (i: Pick<PlanItem, "kind" | "title" | "date" | "subject">) =>
+  [i.kind, i.title.trim(), i.date, i.subject.trim()].join("");
+
+/** Gast-Einträge, die das Konto (nach Art, Titel, Datum, Fach) noch nicht hat. Doppelte innerhalb der Gast-Liste bleiben beide erhalten. */
+export function freshGuestItems(current: readonly PlanItem[], guest: readonly PlanItem[]): PlanItem[] {
+  const have = new Set(current.map(importKey));
+  return guest.filter((g) => !have.has(importKey(g)));
+}
+
+export interface GuestImportPlan {
+  items: PlanItem[];
+  /** wirklich hinzugefügt */
+  taken: number;
+  /** schon im Konto vorhanden (z. B. nach einer unterbrochenen Übernahme) */
+  skipped: number;
+  /** alles, was fehlte, passt hinein: erst dann dürfen die Gast-Daten gelöscht werden */
+  complete: boolean;
+}
+
+/** Übernahme planen: nur fehlende Einträge, höchstens MAX_ITEMS, neue IDs, ohne Stapel-Verknüpfung. Eine Wiederholung erzeugt keine Duplikate. */
+export function planGuestImport(current: readonly PlanItem[], guest: readonly PlanItem[], newId: () => string): GuestImportPlan {
+  const fresh = freshGuestItems(current, guest);
+  const merged = mergeGuestItems(current, fresh, newId);
+  return { items: merged.items, taken: merged.taken, skipped: guest.length - fresh.length, complete: merged.taken === fresh.length };
 }
 
 export const importDoneMessage = (taken: number) => `${plural(taken, "Eintrag", "Einträge")} in dein Konto übernommen.`;

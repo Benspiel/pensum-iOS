@@ -62,14 +62,14 @@ const definitions: Record<ToolId, Omit<Tool, 'id'>> = {
     description: 'Eigene Lernstapel erstellen und Karten mündlich oder schriftlich lernen.',
     symbol: { ios: 'rectangle.on.rectangle', android: 'style', web: 'style' },
     access: 'public',
-    implementation: 'unavailable',
+    implementation: 'native',
   },
   planer: {
     title: 'Planer',
     description: 'Hausaufgaben und Klausuren planen und mit Lernstapeln verknüpfen.',
     symbol: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' },
     access: 'public',
-    implementation: 'unavailable',
+    implementation: 'native',
   },
   videos: {
     title: 'Erklärvideos',
@@ -90,7 +90,7 @@ const definitions: Record<ToolId, Omit<Tool, 'id'>> = {
     description: 'Fächer und Leistungen erfassen und den Zeugnisdurchschnitt berechnen.',
     symbol: { ios: 'percent', android: 'percent', web: 'percent' },
     access: 'public',
-    implementation: 'unavailable',
+    implementation: 'native',
   },
   admin: {
     title: 'Team',

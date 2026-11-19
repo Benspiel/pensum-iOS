@@ -64,6 +64,8 @@ export interface GuestStore {
   updateGrade(id: string, changes: Partial<Omit<Grade, "id">>): Promise<void>;
   removeGrade(id: string): Promise<void>;
   flush(): Promise<void>;
+  /** Wie flush(); für den Gast-Store ohne Wirkung außer dem Warten auf laufende Schreibzugriffe (vor dem Abmelden). */
+  flushOrThrow(): Promise<void>;
   clear(): Promise<void>;
 }
 
@@ -118,6 +120,7 @@ export function createGuestStore(deps: Pick<StoreDeps, "kv" | "onStatus">): Gues
     updateGrade(id, changes) { const c = { ...changes }; return mutate((d) => patch(d.grades, id, c)); },
     removeGrade(id) { return mutate((d) => { d.grades = d.grades.filter((g) => g.id !== id); }); },
     async flush() { await queue; },
+    async flushOrThrow() { await queue; },
     clear() {
       return serial(async () => {
         try { await kv.removeItem(GUEST_KEY); } catch (_) { /* egal */ }
@@ -144,8 +147,15 @@ export interface CloudStore {
   addGrade(g: GradeInput): Promise<unknown>;
   updateGrade(id: string, changes: Partial<Omit<Grade, "id">>): Promise<void>;
   removeGrade(id: string): Promise<unknown>;
-  /** Alles Ausstehende sofort speichern (vor dem Abmelden und beim Verlassen der App). */
+  /** Alles Ausstehende sofort speichern (beim Verlassen der App). Fehler werden verschluckt, siehe flushOrThrow. */
   flush(): Promise<void>;
+  /**
+   * Wie flush(), wartet aber auf alle ausstehenden Schreibvorgänge (auch die gesammelten 600-ms-Änderungen) und lehnt ab,
+   * wenn ein Schreibvorgang gescheitert ist und seine Zeile seither nicht erfolgreich geschrieben wurde (z. B. vor dem Abmelden).
+   */
+  flushOrThrow(): Promise<void>;
+  /** Gescheiterte Schreibvorgänge für diese Zeilen vergessen (die Daten wurden unter neuen IDs neu geschrieben, z. B. Wiederholung der Gast-Übernahme). */
+  forgetFailures(rowIds: readonly string[]): void;
 }
 
 export function createCloudStore(deps: StoreDeps, user: { $id: string }): CloudStore {
@@ -156,10 +166,11 @@ export function createCloudStore(deps: StoreDeps, user: { $id: string }): CloudS
   const chains = new Map<string, Promise<void>>();  // Zeilen-ID → letzte laufende Operation (hält die Reihenfolge je Zeile ein)
   const pending = new Map<string, { tableId: string; data: Record<string, unknown>; timer: ReturnType<typeof setTimeout> | null }>(); // gesammelte Änderungen
   let busy = 0, failed = false;
+  const failedRows = new Map<string, unknown>(); // Zeilen-ID → Fehler des letzten gescheiterten Schreibvorgangs
 
-  const settle = (error?: unknown) => {
+  const settle = (rowId: string, error?: unknown) => {
     busy--;
-    if (error) { failed = true; onStatus("error", error); }
+    if (error) { failed = true; failedRows.set(rowId, error); onStatus("error", error); }
     else if (busy === 0 && pending.size === 0) { if (!failed) onStatus("saved"); }
   };
 
@@ -169,7 +180,7 @@ export function createCloudStore(deps: StoreDeps, user: { $id: string }): CloudS
     failed = false;
     onStatus("saving");
     const run = (chains.get(rowId) || Promise.resolve()).then(op);
-    const tail: Promise<void> = run.then(() => settle(), (e) => settle(e));
+    const tail: Promise<void> = run.then(() => { failedRows.delete(rowId); settle(rowId); }, (e) => settle(rowId, e));
     chains.set(rowId, tail);
     tail.then(() => { if (chains.get(rowId) === tail) chains.delete(rowId); });
     return run;
@@ -236,6 +247,18 @@ export function createCloudStore(deps: StoreDeps, user: { $id: string }): CloudS
     async flush() {
       await Promise.allSettled([...pending.keys()].map(flushRow));
       await Promise.allSettled([...chains.values()]);
+    },
+
+    forgetFailures(rowIds) { for (const id of rowIds) failedRows.delete(id); },
+
+    async flushOrThrow() {
+      // Gesammelte Änderungen sofort losschicken und warten, bis nichts mehr läuft (Operationen können weitere nach sich ziehen)
+      for (let round = 0; round < 10 && (pending.size > 0 || chains.size > 0); round++) {
+        await Promise.allSettled([...pending.keys()].map(flushRow));
+        await Promise.allSettled([...chains.values()]);
+      }
+      if (failedRows.size > 0) throw failedRows.values().next().value;
+      if (pending.size > 0 || chains.size > 0) throw new Error("Schreibvorgänge laufen noch.");
     },
   };
 }

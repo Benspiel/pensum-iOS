@@ -5,7 +5,7 @@
  * Die Meldungstexte sind wörtlich aus dem Web übernommen. */
 import { MAX_DECKS } from "./core";
 import type { Card, Deck, DeckMode } from "./core";
-import type { KarteikartenData } from "./store";
+import type { CloudStore, KarteikartenData } from "./store";
 import type { KeyValueStore } from "../shared/ports";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -99,35 +99,106 @@ export function importPrompt(local: KarteikartenData): { title: string; text: st
 }
 
 export interface ImportResult {
-  /** Neuer Stand des Kontos (das übergebene Objekt bleibt unverändert). */
+  /** Neuer Stand des Kontos (das übergebene Objekt bleibt unverändert; ohne Änderung kommt dasselbe Objekt zurück). */
   data: KarteikartenData;
-  /** Anzahl übernommener Stapel und Karten. */
+  /** Angelegte oder um Karten ergänzte Stapel und neu angelegte Karten. */
   decks: number;
   cards: number;
-  /** true, wenn alle lokalen Stapel mitgenommen wurden (dann darf der Gast-Speicher geleert werden). */
+  /** true, wenn alles Lokale im Konto angekommen oder dort schon vorhanden ist (dann darf der Gast-Speicher geleert werden). */
   complete: boolean;
-  /** true, wenn das Konto schon voll war (nichts übernommen). */
+  /** true, wenn nichts übernommen werden konnte, weil das Konto schon voll war. */
   noRoom: boolean;
-  /** Meldung für die Oberfläche (wie im Web). */
+  /** Meldung für die Oberfläche (wie im Web, ergänzt um „schon vorhanden“). */
   message: string;
 }
 
-/** Hängt lokale Stapel mit neuen IDs an die Konto-Stapel an, höchstens bis MAX_DECKS. */
+/** Höchstzahl Karten je Stapel (wie in clean() im Store). */
+const MAX_CARDS = 2000;
+const cardKey = (c: { front: string; back: string }) => JSON.stringify([c.front, c.back]);
+
+/**
+ * Übernimmt lokale Stapel ins Konto, höchstens bis MAX_DECKS Stapel, mit neuen IDs.
+ * Wiederholbar ohne Duplikate: Gibt es im Konto schon einen Stapel mit demselben Namen, kommen nur Karten hinzu, deren Paar
+ * (Vorderseite, Rückseite) dort noch fehlt (genauer Vergleich); sind alle Paare da, passiert nichts. So verdoppelt ein zweiter
+ * Versuch nach einem Teilfehler oder einem nicht geleerten Gast-Speicher nichts. Der Modus eines vorhandenen Stapels bleibt.
+ */
 export function importGuestDecks(current: KarteikartenData, local: KarteikartenData, newId: () => string): ImportResult {
-  const room = MAX_DECKS - current.decks.length;
-  const take = local.decks.slice(0, Math.max(0, room));
-  if (!take.length) {
-    return { data: current, decks: 0, cards: 0, complete: false, noRoom: true, message: "Dein Konto hat schon 5 Stapel. Lösche einen, um lokale Stapel zu übernehmen." };
+  const decks: Deck[] = [...current.decks];
+  const byName = new Map<string, number[]>();
+  decks.forEach((d, i) => byName.set(d.name, [...(byName.get(d.name) ?? []), i]));
+  let touched = 0, cards = 0, noRoomLeft = false, capLeft = false;
+
+  for (const d of local.decks) {
+    const same = byName.get(d.name);
+    if (same && same.length) {
+      const known = new Set<string>();
+      for (const i of same) for (const c of decks[i]!.cards) known.add(cardKey(c));
+      const fresh: Deck["cards"] = [];
+      for (const c of d.cards) { const k = cardKey(c); if (!known.has(k)) { known.add(k); fresh.push(c); } }
+      if (!fresh.length) continue;
+      const target = decks[same[0]!]!;
+      const take = fresh.slice(0, Math.max(0, MAX_CARDS - target.cards.length));
+      if (take.length < fresh.length) capLeft = true;
+      if (!take.length) continue;
+      decks[same[0]!] = { ...target, cards: [...target.cards, ...take.map((c) => ({ id: newId(), front: c.front, back: c.back, level: c.level }))] };
+      touched++; cards += take.length;
+      continue;
+    }
+    if (decks.length >= MAX_DECKS) { noRoomLeft = true; continue; }
+    decks.push({ id: newId(), name: d.name, mode: d.mode, cards: d.cards.map((c) => ({ id: newId(), front: c.front, back: c.back, level: c.level })) });
+    byName.set(d.name, [decks.length - 1]);
+    touched++; cards += d.cards.length;
   }
-  const added: Deck[] = take.map((d) => ({ id: newId(), name: d.name, mode: d.mode, cards: d.cards.map((c) => ({ id: newId(), front: c.front, back: c.back, level: c.level })) }));
-  const cards = countCards(added);
-  const complete = take.length === local.decks.length;
+
+  const complete = !noRoomLeft && !capLeft;
+  const leftover = noRoomLeft ? " Mehr als 5 Stapel passen nicht." : capLeft ? " Nicht alle Karten passen (höchstens 2000 pro Stapel)." : "";
+  if (!touched) {
+    return {
+      data: current, decks: 0, cards: 0, complete, noRoom: noRoomLeft,
+      message: noRoomLeft ? "Dein Konto hat schon 5 Stapel. Lösche einen, um lokale Stapel zu übernehmen." : capLeft ? "Ein Stapel im Konto hat schon 2000 Karten. Es wurde nichts übernommen." : "Alle lokalen Karten sind schon in deinem Konto.",
+    };
+  }
   return {
-    data: { decks: [...current.decks, ...added] },
-    decks: added.length,
-    cards,
-    complete,
-    noRoom: false,
-    message: `${plural(take.length, "Stapel", "Stapel")} mit ${plural(cards, "Karte", "Karten")} in dein Konto übernommen.${complete ? "" : " Mehr als 5 Stapel passen nicht."}`,
+    data: { decks }, decks: touched, cards, complete, noRoom: false,
+    message: `${plural(touched, "Stapel", "Stapel")} mit ${plural(cards, "Karte", "Karten")} in dein Konto übernommen.${leftover}`,
   };
+}
+
+export interface ImportOutcome {
+  result: ImportResult;
+  /** Das Konto hat die Daten sicher gespeichert (flushOrThrow gelang). */
+  saved: boolean;
+  /** Der Gast-Speicher wurde geleert (nur bei vollständigem Erfolg). */
+  cleared: boolean;
+  /** Grund, wenn das Speichern scheiterte; die Gastdaten bleiben dann erhalten. */
+  error?: unknown;
+}
+
+/**
+ * Gastimport mit Sicherung: übernimmt `local` in die Konto-Daten, speichert über den Cloud-Store und leert den Gast-Speicher
+ * nur, wenn alles übernommen UND sicher gespeichert ist (store.flushOrThrow). Bei Fehlern bleiben die Gastdaten, ein erneuter
+ * Aufruf erzeugt dank der Namens-/Kartenpaar-Prüfung keine Duplikate.
+ */
+export async function importIntoAccount(a: {
+  local: KarteikartenData;
+  getData: () => KarteikartenData;
+  setData: (data: KarteikartenData) => void;
+  store: Pick<CloudStore, "save" | "flushOrThrow" | "newId">;
+  guest: { clear(): Promise<void> };
+}): Promise<ImportOutcome> {
+  const before = a.getData();
+  const result = importGuestDecks(before, a.local, a.store.newId);
+  if (result.noRoom) return { result, saved: false, cleared: false };
+  if (result.data !== before) {
+    a.setData(result.data);
+    await a.store.save(result.data);
+  }
+  try {
+    await a.store.flushOrThrow();
+  } catch (error) {
+    return { result, saved: false, cleared: false, error };
+  }
+  if (!result.complete) return { result, saved: true, cleared: false };
+  await a.guest.clear();
+  return { result, saved: true, cleared: true };
 }

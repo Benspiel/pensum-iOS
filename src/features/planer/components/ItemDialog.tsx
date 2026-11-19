@@ -10,13 +10,16 @@ import {
   type FormErrors, type FormFields, type ItemForm,
 } from "../model";
 import { Chip } from "./Chip";
+import { DateField } from "./DateField";
 
-export function ItemDialog({ kind, item, items, decks, onClose, onSubmit }: {
+export function ItemDialog({ kind, item, items, decks, today, onClose, onSubmit }: {
   kind: ItemKind;
   /** null = neuer Eintrag */
   item: PlanItem | null;
   items: readonly PlanItem[];
   decks: readonly DeckSummary[];
+  /** heute als "JJJJ-MM-TT" */
+  today: string;
   onClose: () => void;
   onSubmit: (fields: FormFields) => void;
 }) {
@@ -67,14 +70,13 @@ export function ItemDialog({ kind, item, items, decks, onClose, onSubmit }: {
             ) : null}
           </View>
 
-          <Field
+          <DateField
             label={labels.date}
-            value={form.date}
-            onChangeText={(t) => { set({ date: t }); if (errors.date) setErrors((e) => ({ ...e, date: undefined })); }}
-            maxLength={10}
-            keyboardType="numbers-and-punctuation"
             placeholder={labels.datePlaceholder}
+            value={form.date}
+            today={today}
             error={errors.date}
+            onChange={(t) => { set({ date: t }); if (errors.date) setErrors((e) => ({ ...e, date: undefined })); }}
           />
 
           <Field
