@@ -1,0 +1,2 @@
+# Preserve the upstream browser build and its documented SHA-256.
+src/features/goodnotes/engine/jspdf.umd.min.js -text
