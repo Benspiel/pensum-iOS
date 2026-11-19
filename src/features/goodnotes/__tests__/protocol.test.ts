@@ -48,3 +48,15 @@ test("Host-HTML: komplett lokal, ohne Netz", () => {
   assert.equal(scripts.length, 4);
   for (const s of scripts) assert.doesNotThrow(() => new Function(s));
 });
+
+import { base64ToBytes, bytesToBase64 } from "../protocol";
+
+test("Base64: Hin und zurück für alle Restlängen", () => {
+  for (const len of [0, 1, 2, 3, 4, 5, 100, 257]) {
+    const bytes = Uint8Array.from({ length: len }, (_, i) => (i * 37 + 11) & 255);
+    const b64 = bytesToBase64(bytes);
+    assert.equal(b64, Buffer.from(bytes).toString("base64"));
+    assert.deepEqual([...base64ToBytes(b64)], [...bytes]);
+  }
+  assert.deepEqual([...base64ToBytes("SGk=")], [72, 105]);
+});

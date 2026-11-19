@@ -85,3 +85,30 @@ export function createIdGenerator(prefix = "r"): () => string {
 /** Hinweis nach dem Export (Web: Rückgabewert von exportGoodnotes). */
 export const exportHint = (kind: "pdf" | "goodnotes", count: number): string =>
   kind === "pdf" ? "PDF bereit zum Teilen." : count > 1 ? `${count} Dateien` : "Jetzt in Goodnotes öffnen";
+
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+/** Base64 → Bytes ohne atob/Buffer (läuft überall, auch unter Hermes). */
+export function base64ToBytes(b64: string): Uint8Array {
+  const s = b64.replace(/[^A-Za-z0-9+/]/g, "");
+  const out = new Uint8Array(Math.floor((s.length * 3) / 4));
+  let o = 0;
+  for (let i = 0; i < s.length; i += 4) {
+    const a = B64.indexOf(s[i]!), b = B64.indexOf(s[i + 1] ?? "A"), c = s[i + 2] === undefined ? -1 : B64.indexOf(s[i + 2]!), d = s[i + 3] === undefined ? -1 : B64.indexOf(s[i + 3]!);
+    const n = (a << 18) | (b << 12) | ((c < 0 ? 0 : c) << 6) | (d < 0 ? 0 : d);
+    if (o < out.length) out[o++] = (n >> 16) & 255;
+    if (c >= 0 && o < out.length) out[o++] = (n >> 8) & 255;
+    if (d >= 0 && o < out.length) out[o++] = n & 255;
+  }
+  return out;
+}
+
+/** Bytes → Base64 (für Vorlagen, die zur Engine gehen). */
+export function bytesToBase64(bytes: Uint8Array): string {
+  let r = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i]!, b = bytes[i + 1], c = bytes[i + 2];
+    const n = (a << 16) | ((b ?? 0) << 8) | (c ?? 0);
+    r += B64[(n >> 18) & 63]! + B64[(n >> 12) & 63]! + (b === undefined ? "=" : B64[(n >> 6) & 63]!) + (c === undefined ? "=" : B64[n & 63]!);
+  }
+  return r;
+}
