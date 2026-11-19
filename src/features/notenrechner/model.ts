@@ -97,3 +97,28 @@ export function subjectValues(subjects: readonly Subject[], grades: readonly Gra
 }
 
 export const HALF_LABEL: Record<Half, string> = { 1: "1. Halbjahr", 2: "2. Halbjahr" };
+
+/* ---------- Aufteilung der Oberfläche (iPad: zwei Spalten) ---------- */
+
+/** Teile des Notenrechner-Bildschirms in ihrer Reihenfolge auf dem Telefon. */
+export type NoteBlock = "toolbar" | "storage" | "summary" | "converter" | "subjects";
+
+export interface NoteColumns {
+  /** erste (linke) Spalte; einspaltig steht hier alles in der Reihenfolge des Telefons */
+  primary: NoteBlock[];
+  /** zweite (rechte) Spalte; einspaltig leer */
+  secondary: NoteBlock[];
+  /** Spaltenbreiten im Verhältnis (die Fächerliste bekommt mehr Platz) */
+  weights: { primary: number; secondary: number };
+}
+
+/** Welcher Teil steht in welcher Spalte? Zweispaltig: links Werkzeuge, Hinweis, Durchschnitt, Umrechner; rechts die Fächerliste. */
+export function noteColumns(split: boolean): NoteColumns {
+  return split
+    ? { primary: ["toolbar", "storage", "summary", "converter"], secondary: ["subjects"], weights: { primary: 4, secondary: 6 } }
+    : { primary: ["toolbar", "storage", "summary", "converter", "subjects"], secondary: [], weights: { primary: 1, secondary: 1 } };
+}
+
+/** Auswahl-Blatt (Schuljahr): auf breiten Geräten (iPad) ein zentriertes Blatt mit begrenzter Breite, auf dem Telefon ein Seiten-Blatt. */
+export const SHEET_MAX_WIDTH = 560;
+export const sheetPresentation = (windowWidth: number): "formSheet" | "pageSheet" => (windowWidth >= 640 ? "formSheet" : "pageSheet");

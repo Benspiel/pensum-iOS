@@ -1,4 +1,5 @@
 /* Planer – Tab „Klausuren“: Karten mit Countdown, Link zu Karteikarten, Leerzustand, vergangene Klausuren (Web: .pl-exam, .pl-count, .pl-empty). */
+import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Badge, Button, Card, TintContext } from "../../../ui";
 import { radius, spacing, usePensumTheme } from "../../../theme";
@@ -49,8 +50,10 @@ function ExamCard({ exam, today, decks, onOpenDeck, onEdit, onDelete }: {
   );
 }
 
-export function ExamList({ items, today, decks, onNew, onOpenDeck, onEdit, onDelete }: {
+export function ExamList({ items, today, decks, header, onNew, onOpenDeck, onEdit, onDelete }: {
   items: readonly PlanItem[]; today: string; decks: readonly DeckSummary[];
+  /** Kopfzeile über der Liste (iPad ohne Tabs: Überschrift mit „+ Neue Klausur“) */
+  header?: ReactNode;
   onNew: () => void; onOpenDeck: (deckId: string) => void; onEdit: (item: PlanItem) => void; onDelete: (item: PlanItem) => void;
 }) {
   const { upcoming, past } = splitExams(items.filter((i) => i.kind === "exam"), today);
@@ -59,6 +62,7 @@ export function ExamList({ items, today, decks, onNew, onOpenDeck, onEdit, onDel
   );
   return (
     <View style={styles.list}>
+      {header}
       {upcoming.length ? <View style={styles.cards}>{upcoming.map(card)}</View> : (
         <Empty title={EXAM_EMPTY.title} message={EXAM_EMPTY.message} action={<Button title={EXAM_EMPTY.action} onPress={onNew} />} />
       )}

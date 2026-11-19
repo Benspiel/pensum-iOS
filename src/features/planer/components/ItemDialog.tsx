@@ -1,12 +1,12 @@
 /* Planer – Dialog „Neue Hausaufgabe / Klausur“ und „… bearbeiten“ (Web: itemDialog). Die Prüfung steckt in model.ts → validateForm. */
 import { useState } from "react";
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { AppText, Button, Field } from "../../../ui";
 import { spacing, usePensumTheme } from "../../../theme";
 import type { ItemKind, PlanItem } from "../core";
 import type { DeckSummary } from "../links";
 import {
-  TEXT, deckOptions, dialogLabels, dialogTitle, emptyForm, formFromItem, subjectSuggestions, validateForm,
+  SHEET_MAX_WIDTH, TEXT, deckOptions, dialogLabels, dialogTitle, emptyForm, formFromItem, sheetPresentation, subjectSuggestions, validateForm,
   type FormErrors, type FormFields, type ItemForm,
 } from "../model";
 import { Chip } from "./Chip";
@@ -26,6 +26,7 @@ export function ItemDialog({ kind, item, items, decks, today, onClose, onSubmit 
   onSubmit: (fields: FormFields) => void;
 }) {
   const { colors } = usePensumTheme();
+  const { width } = useWindowDimensions();
   const creating = !item;
   const labels = dialogLabels(kind);
   const [form, setForm] = useState<ItemForm>(() => (item ? formFromItem(item) : emptyForm()));
@@ -42,7 +43,7 @@ export function ItemDialog({ kind, item, items, decks, today, onClose, onSubmit 
   const options = deckOptions(decks);
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible animationType="slide" presentationStyle={sheetPresentation(width)} onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={[styles.flex, { backgroundColor: colors.canvas }]}>
         <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <View style={styles.head}>
@@ -113,7 +114,8 @@ export function ItemDialog({ kind, item, items, decks, today, onClose, onSubmit 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   /** Web `.modal-body`: Innenabstand 24, Abstand zwischen den Feldern */
-  content: { padding: spacing.xl, gap: spacing.xl },
+  /** Auf breiten Fenstern bleibt das Blatt höchstens 560 pt breit und steht mittig */
+  content: { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", padding: spacing.xl, gap: spacing.xl },
   head: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.lg },
   headTitle: { flex: 1, paddingTop: spacing.xs },
   /** Web `.modal-head .icon-btn { margin: -8px -8px 0 0 }` */

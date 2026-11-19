@@ -6,7 +6,7 @@ import {
   parseDateInput, formatDateInput, validateForm, validateQuick, emptyForm, formFromItem, newItem, subjectSuggestions,
   toggleDone, removeItem, clearDone, updateItem, headerStats, tabTitles, saveNote, taskRowModel, taskEmpty, examCardModel,
   dialogTitle, dialogLabels, newButtonLabel, openNewDialog, openEditDialog, importPrompt, importDoneMessage, dayChanged, msUntilNextDay,
-  deckOptions, groupHeading, isFull, TEXT, pickerDate, textFromPickerDate,
+  deckOptions, groupHeading, isFull, TEXT, pickerDate, textFromPickerDate, planerColumns, headerNewTab, sheetPresentation, SHEET_MAX_WIDTH,
 } from "../model";
 import { isDeclined, markDeclined, DECLINED_KEY } from "../prefs";
 import { MAX_ITEMS, type PlanItem } from "../core";
@@ -258,4 +258,37 @@ test("pickerDate/textFromPickerDate: Wert des Felds, sonst heute; Rückweg nach 
   assert.equal(textFromPickerDate(new Date(2026, 2, 5, 0, 30)), "05.03.2026");
   assert.equal(textFromPickerDate(new Date(2026, 2, 5, 23, 59)), "05.03.2026");
   assert.equal(textFromPickerDate(pickerDate("29.02.2028", TODAY)), "29.02.2028");
+});
+
+/* ---------- Aufteilung (iPad) ---------- */
+
+test("Aufteilung einspaltig: Kopf, Tabs, dann nur der gewählte Bereich", () => {
+  const task = planerColumns(false, "task");
+  assert.deepEqual(task.primary, ["header", "tabs", "tasks"]);
+  assert.deepEqual(task.secondary, []);
+  assert.deepEqual(planerColumns(false, "exam").primary, ["header", "tabs", "exams"]);
+});
+
+test("Aufteilung zweispaltig: ohne Tabs, Hausaufgaben links, Klausuren rechts, unabhängig vom Tab", () => {
+  for (const tab of ["task", "exam"] as const) {
+    const c = planerColumns(true, tab);
+    assert.deepEqual(c.primary, ["header", "tasks"]);
+    assert.deepEqual(c.secondary, ["exams"]);
+    assert.ok(![...c.primary, ...c.secondary].includes("tabs"));
+  }
+});
+
+test("„+ Neue …“ im Kopf: einspaltig nach Tab, zweispaltig immer Hausaufgabe", () => {
+  assert.equal(headerNewTab(false, "exam"), "exam");
+  assert.equal(headerNewTab(false, "task"), "task");
+  assert.equal(headerNewTab(true, "exam"), "task");
+  assert.equal(newButtonLabel(headerNewTab(true, "exam")), "+ Neue Hausaufgabe");
+});
+
+test("Dialog-Blatt: Telefon Seiten-Blatt, iPad zentriertes Blatt mit begrenzter Breite", () => {
+  assert.equal(sheetPresentation(375), "pageSheet");
+  assert.equal(sheetPresentation(639), "pageSheet");
+  assert.equal(sheetPresentation(744), "formSheet");
+  assert.equal(sheetPresentation(1366), "formSheet");
+  assert.equal(SHEET_MAX_WIDTH, 560);
 });

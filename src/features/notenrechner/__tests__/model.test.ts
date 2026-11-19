@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   sanitizeView, defaultView, visibleSubjects, gradesOf, gradeValue, planSetGrade, planSeed, missingSuggestions,
-  checkNewSubjectName, subjectValues, type GradeRec, type View,
+  checkNewSubjectName, subjectValues, noteColumns, type GradeRec, type View,
 } from "../model";
 import { loadView, saveView, VIEW_KEY, isSeeded, markSeeded, seedKey, isDeclined, markDeclined, SEEDED_KEY } from "../prefs";
 import { DEFAULT_SUBJECTS, type Subject } from "../core";
@@ -126,4 +126,25 @@ test("Einstellungen: kaputter Speicher und Schreibfehler stören nicht", async (
   await saveView(broken, defaultView(NOW));
   await markDeclined(broken, "u");
   assert.equal(await isDeclined(broken, "u"), false);
+});
+
+test("Aufteilung: einspaltig wie auf dem Telefon, zweispaltig links Werkzeuge und rechts die Fächerliste", () => {
+  const one = noteColumns(false);
+  assert.deepEqual(one.primary, ["toolbar", "storage", "summary", "converter", "subjects"]);
+  assert.deepEqual(one.secondary, []);
+
+  const two = noteColumns(true);
+  assert.deepEqual(two.primary, ["toolbar", "storage", "summary", "converter"]);
+  assert.deepEqual(two.secondary, ["subjects"]);
+  assert.ok(two.weights.secondary > two.weights.primary, "die Liste bekommt mehr Platz");
+  // nichts geht verloren und nichts steht doppelt
+  for (const c of [one, two]) assert.deepEqual([...c.primary, ...c.secondary].sort(), ["converter", "storage", "subjects", "summary", "toolbar"]);
+});
+
+test("Auswahl-Blatt: Telefon Seiten-Blatt, iPad zentriertes Blatt", async () => {
+  const { sheetPresentation, SHEET_MAX_WIDTH } = await import("../model");
+  assert.equal(sheetPresentation(375), "pageSheet");
+  assert.equal(sheetPresentation(744), "formSheet");
+  assert.equal(sheetPresentation(1366), "formSheet");
+  assert.equal(SHEET_MAX_WIDTH, 560);
 });

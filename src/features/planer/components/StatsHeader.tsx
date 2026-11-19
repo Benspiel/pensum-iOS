@@ -4,10 +4,10 @@ import { AppText, Button, Panel } from "../../../ui";
 import { WIDE_BREAKPOINT, radius, spacing, usePensumTheme } from "../../../theme";
 import { saveNote, type HeaderStats, type SaveState } from "../model";
 
-function Stat({ value, label, alert }: { value: string; label: string; alert?: boolean }) {
+function Stat({ value, label, alert, roomy }: { value: string; label: string; alert?: boolean; roomy?: boolean }) {
   const { colors } = usePensumTheme();
   const { width } = useWindowDimensions();
-  const size = width <= 420 ? 22 : 26; // Web: 26 px, bis 420 px Breite 22 px
+  const size = roomy ? 32 : width <= 420 ? 22 : 26; // Web: 26 px, bis 420 px Breite 22 px; iPad zweispaltig 32
   const fg = alert ? colors.onPrimary : colors.ink;
   return (
     <View
@@ -21,11 +21,13 @@ function Stat({ value, label, alert }: { value: string; label: string; alert?: b
   );
 }
 
-export function StatsHeader({ stats, account, status, newLabel, onNew }: {
+export function StatsHeader({ stats, account, status, newLabel, onNew, roomy }: {
   stats: HeaderStats; account: boolean; status: SaveState;
   /** Beschriftung des „+ Neu“-Knopfs (wechselt mit dem Tab) */
   newLabel: string;
   onNew: () => void;
+  /** iPad (zweispaltig): größere Kennzahlen */
+  roomy?: boolean;
 }) {
   const { colors } = usePensumTheme();
   const { width } = useWindowDimensions();
@@ -37,9 +39,9 @@ export function StatsHeader({ stats, account, status, newLabel, onNew }: {
         <Button title={newLabel} onPress={onNew} />
       </View>
       <View style={styles.stats}>
-        <Stat value={String(stats.open)} label="offen" />
-        <Stat value={String(stats.alertCount)} label={stats.alertLabel} alert={stats.alert} />
-        <Stat value={stats.nextText} label={stats.nextLabel} alert={stats.nextAlert} />
+        <Stat value={String(stats.open)} label="offen" roomy={roomy} />
+        <Stat value={String(stats.alertCount)} label={stats.alertLabel} alert={stats.alert} roomy={roomy} />
+        <Stat value={stats.nextText} label={stats.nextLabel} alert={stats.nextAlert} roomy={roomy} />
       </View>
       <View style={styles.note} accessible accessibilityLabel={note.text} accessibilityLiveRegion="polite">
         <View style={[styles.dot, { borderColor: colors.ink, backgroundColor: note.filled ? colors.ink : "transparent" }]} />

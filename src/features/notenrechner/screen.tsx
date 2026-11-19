@@ -3,8 +3,10 @@
  * Web-Quelle: tools/notenrechner/{index.html,notenrechner.js,notenrechner.css} (Pensum, Web-Commit 770dbe4). Zustand: useNotenrechner.ts, Logik: model.ts/ui-model.ts.
  * Einbinden: app/tools/notenrechner.tsx → `export { default } from "../../src/features/notenrechner/screen";` */
 import { useRouter } from "expo-router";
+import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Button, Card, ErrorState, LoadingState, Panel, Screen } from "../../ui";
+import { TwoColumn, useWideLayout } from "../../ui/TwoColumn";
 import { spacing } from "../../theme";
 import { SYSTEMS } from "./core";
 import { AddSubject, Suggestions } from "./components/AddSubject";
@@ -14,11 +16,14 @@ import { SubjectRow } from "./components/SubjectRow";
 import { Summary } from "./components/Summary";
 import { Toast } from "./components/Toast";
 import { Toolbar } from "./components/Toolbar";
+import { noteColumns, type NoteBlock } from "./model";
 import { useNotenrechner } from "./useNotenrechner";
 
 export default function NotenrechnerScreen() {
   const n = useNotenrechner();
   const router = useRouter();
+  const { split } = useWideLayout();
+  const cols = noteColumns(split);
 
   const body = (() => {
     if (n.status === "error") {
@@ -27,19 +32,23 @@ export default function NotenrechnerScreen() {
     if (!n.ready || (n.loading && !n.loadError)) return <LoadingState title="Lade deine Noten …" />;
     if (n.loadError) return <ErrorState title="Noten nicht geladen." message={n.loadError} onRetry={n.reload} retryLabel="Neu laden" />;
     const unit = SYSTEMS[n.view.system].unit;
-    return (
-      <>
-        <Toolbar view={n.view} subjectYears={n.subjectYears} onChange={n.changeView} />
+    const blocks: Record<NoteBlock, ReactNode> = {
+      toolbar: <Toolbar key="toolbar" view={n.view} subjectYears={n.subjectYears} onChange={n.changeView} />,
+      storage: (
         <StorageNote
+          key="storage"
           accountName={n.accountName}
           saveStatus={n.saveStatus}
           localSubjects={n.guestSubjects}
           onLogin={() => router.push("/konto")}
           onImport={() => { void n.importLocal(); }}
         />
-        <Summary summary={n.summary} />
-        <Converter />
-        <View style={styles.section}>
+      ),
+      summary: <Summary key="summary" summary={n.summary} />,
+      converter: <Converter key="converter" />,
+      subjects: (
+        // Zweispaltig steht die Liste oben in ihrer Spalte, daher ohne den Abstand nach oben
+        <View key="subjects" style={split ? undefined : styles.section}>
           <AppText variant="h3" accessibilityRole="header">Deine Zeugnisnoten.</AppText>
           {n.subjects.length === 0 ? (
             <Panel style={styles.empty}>
@@ -76,7 +85,17 @@ export default function NotenrechnerScreen() {
             </View>
           ) : null}
         </View>
-      </>
+      ),
+    };
+    return (
+      <TwoColumn
+        split={split}
+        gap={split ? spacing.xxl : spacing.lg}
+        primaryWeight={cols.weights.primary}
+        secondaryWeight={cols.weights.secondary}
+        primary={cols.primary.map((id) => blocks[id])}
+        secondary={cols.secondary.length ? cols.secondary.map((id) => blocks[id]) : undefined}
+      />
     );
   })();
 
@@ -86,6 +105,7 @@ export default function NotenrechnerScreen() {
         title="Notenrechner."
         navigationTitle="Notenrechner"
         description="Trag pro Fach deine Zeugnisnote ein. Den Zeugnisdurchschnitt siehst du sofort."
+        wide
         contentStyle={styles.page}
       >
         {body}

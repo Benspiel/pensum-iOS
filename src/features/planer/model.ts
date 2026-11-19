@@ -183,6 +183,38 @@ export const clearDone = (items: readonly PlanItem[]): PlanItem[] => items.filte
 export const updateItem = (items: readonly PlanItem[], id: string, fields: Partial<FormFields>): PlanItem[] =>
   items.map((i) => (i.id === id ? { ...i, ...fields } : i));
 
+/* ---------- Aufteilung der Oberfläche (iPad: zwei Spalten ohne Tabs) ---------- */
+
+/** Teile des Planer-Bildschirms. „tabs“ ist die Umschaltung Hausaufgaben/Klausuren und gilt nur einspaltig. */
+export type PlanerBlock = "header" | "tabs" | "tasks" | "exams";
+
+export interface PlanerColumns {
+  /** erste (linke) Spalte; einspaltig steht hier alles in der Reihenfolge des Telefons */
+  primary: PlanerBlock[];
+  /** zweite (rechte) Spalte; einspaltig leer */
+  secondary: PlanerBlock[];
+  /** Spaltenbreiten im Verhältnis */
+  weights: { primary: number; secondary: number };
+}
+
+/**
+ * Welcher Teil steht in welcher Spalte? Einspaltig (Telefon, hochkant): Kopf, Tabs, dann der Bereich des gewählten Tabs.
+ * Zweispaltig (iPad quer): ohne Tabs; links Kopf und Hausaufgaben, rechts die Klausuren – der Tab-Zustand spielt dann keine Rolle.
+ */
+export function planerColumns(split: boolean, tab: Tab): PlanerColumns {
+  return split
+    ? { primary: ["header", "tasks"], secondary: ["exams"], weights: { primary: 6, secondary: 5 } }
+    : { primary: ["header", "tabs", tab === "task" ? "tasks" : "exams"], secondary: [], weights: { primary: 1, secondary: 1 } };
+}
+
+/** Für welchen Bereich legt „+ Neue …“ im Kopf einen Eintrag an? Einspaltig der aktive Tab, zweispaltig immer Hausaufgabe (Klausuren haben ihren eigenen Knopf). */
+export const headerNewTab = (split: boolean, tab: Tab): Tab => (split ? "task" : tab);
+
+/** Dialoge erscheinen auf breiten Geräten (iPad) als zentriertes Blatt mit begrenzter Breite, auf dem Telefon als Seiten-Blatt. */
+export const SHEET_MAX_WIDTH = 560;
+export const SHEET_MIN_WINDOW = 640;
+export const sheetPresentation = (windowWidth: number): "formSheet" | "pageSheet" => (windowWidth >= SHEET_MIN_WINDOW ? "formSheet" : "pageSheet");
+
 /* ---------- Kopf: Kennzahlen, Tabs, Speicher-Hinweis ---------- */
 
 export interface HeaderStats {

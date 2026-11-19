@@ -2,13 +2,15 @@
  * Auf iOS ein Blatt mit Auswahlliste. */
 import { SymbolView } from "expo-symbols";
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppText, Button } from "../../../ui";
 import { radius, spacing, usePensumTheme } from "../../../theme";
+import { SHEET_MAX_WIDTH, sheetPresentation } from "../model";
 
 export function YearPicker({ value, options, onChange }: { value: string; options: readonly string[]; onChange: (year: string) => void }) {
   const { colors } = usePensumTheme();
+  const { width } = useWindowDimensions();
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -24,7 +26,7 @@ export function YearPicker({ value, options, onChange }: { value: string; option
           <SymbolView name="chevron.down" size={16} tintColor={colors.ink} fallback={<AppText variant="bodySm">▾</AppText>} />
         </View>
       </Pressable>
-      <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} animationType="slide" presentationStyle={sheetPresentation(width)} onRequestClose={() => setOpen(false)}>
         <SafeAreaView style={[styles.sheet, { backgroundColor: colors.canvas }]}>
           <View style={styles.head}>
             <AppText variant="h4" accessibilityRole="header">Schuljahr</AppText>
@@ -58,7 +60,8 @@ const styles = StyleSheet.create({
   button: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, paddingLeft: spacing.lg, paddingRight: 14, paddingVertical: spacing.md, borderRadius: radius.pill, borderCurve: "continuous" },
   value: { fontWeight: "600" },
   sheet: { flex: 1 },
-  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-  list: { padding: spacing.xl, gap: spacing.sm },
+  /** Auf breiten Fenstern höchstens 560 pt breit, mittig */
+  head: { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
+  list: { width: "100%", maxWidth: SHEET_MAX_WIDTH, alignSelf: "center", padding: spacing.xl, gap: spacing.sm },
   option: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, borderRadius: radius.field, borderCurve: "continuous" },
 });
