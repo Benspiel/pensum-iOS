@@ -33,7 +33,7 @@ export const BLOBS: readonly BlobSpec[] = [
 ];
 
 /** Auf Telefonen sichtbar sind wie im Web nur der erste Ring und das erste Punktraster. */
-export const RING: RingSpec = { id: 'ring', top: 0.1, right: 0.08, speed: 0.28, dashed: false };
+export const RING: RingSpec = { id: 'ring', top: 0.045, right: -0.12, speed: 0.28, dashed: false };
 export const DOTS: DotsSpec = { id: 'dots', top: 0.3, right: 0.04, speed: 0.34, opacity: 0.45 };
 
 /** Größe einer Farbfläche: auf schmalen Geräten 90 % der Breite, sonst höchstens 640 und 56 % (Web: width). */
