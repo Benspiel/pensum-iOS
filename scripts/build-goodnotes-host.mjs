@@ -25,6 +25,14 @@ const safe = (s) => s.replace(/<\/script/gi, "<\/script");
 const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style>
 <script>${safe(read("jszip.min.js"))}</script><script>${safe(read("jspdf.umd.min.js"))}</script><script>${safe(read("templates.js"))}</script>
 <script>${safe(engine)}\n${bridge}</script>`;
-const out = `/* GENERIERT von scripts/build-goodnotes-host.mjs – nicht von Hand ändern. */\nexport const GOODNOTES_HOST_HTML: string = ${JSON.stringify(html)};\n`;
+// Zeichenfeld für die eigene Handschrift: nur Engine (rdp, HAND_CHARS) + Pad-Brücke + Caveat als Hilfsbuchstabe
+// Zeichenfeld für die eigene Handschrift: nur Engine (rdp, HAND_CHARS) + Pad-Brücke + Caveat als Hilfsbuchstabe
+const caveat = fonts.find(([f, w]) => f === "Caveat" && w === 400);
+const padCss = `@font-face{font-family:"Caveat";font-weight:400;src:url(data:font/woff2;base64,${b64(`fonts/${caveat[2]}.woff2`)}) format("woff2")}`;
+const padHtml = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><style>${padCss}
+html,body{margin:0;height:100%;background:#fff;overflow:hidden}#pad{display:block;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none}</style>
+<canvas id="pad"></canvas><script>${safe(engine)}
+${safe(read("pad-bridge.js"))}</script>`;
+const out = `/* GENERIERT von scripts/build-goodnotes-host.mjs – nicht von Hand ändern. */\nexport const GOODNOTES_HOST_HTML: string = ${JSON.stringify(html)};\nexport const GOODNOTES_PAD_HTML: string = ${JSON.stringify(padHtml)};\n`;
 fs.writeFileSync(path.join(dir, "host-html.generated.ts"), out);
 console.log("host-html.generated.ts", (out.length / 1e6).toFixed(2), "MB");
