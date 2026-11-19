@@ -23,3 +23,11 @@ Alle Dateien liegen im Repository und werden mit der App ausgeliefert (kein CDN,
 ## Spiele
 
 Bewusst nicht Teil der iOS-App (Entscheidung des Auftraggebers). Es werden keine Spiele-Assets oder -Lizenzen übernommen.
+
+## App-Schrift Inter (`assets/fonts/`)
+
+| Datei | Herkunft | Lizenz |
+| --- | --- | --- |
+| `Inter_300Light.ttf`, `Inter_400Regular.ttf`, `Inter_500Medium.ttf`, `Inter_600SemiBold.ttf`, `Inter_700Bold.ttf` | Inter, The Inter Project Authors (https://github.com/rsms/inter); statische TTF-Schnitte aus dem npm-Paket `@expo-google-fonts/inter@0.4.2` (Paket: MIT, Schrift: SIL OFL 1.1), unverändert übernommen | SIL OFL 1.1 (`assets/fonts/Inter-OFL.txt`, Text identisch mit `vendor/fonts/inter-LICENSE.txt` der Website) |
+
+Die Website nutzt Inter als Variable-Font (Gewichte 300 / 450 / 650). Variable-Fonts lassen sich in React Native auf iOS nicht gewichten; die App lädt daher statische Schnitte (`src/theme/fonts.ts`): Untertitel 300 → Light, Text 450 → Regular 400, Knöpfe/Labels 600 → SemiBold, Überschriften 650 → SemiBold 600. Die Schriftdateien werden nicht verändert und nicht einzeln verkauft.

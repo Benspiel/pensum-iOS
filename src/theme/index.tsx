@@ -2,53 +2,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 
+import { palette, type PensumColors, type ResolvedTheme } from './tokens';
+
 export type ThemeChoice = 'system' | 'light' | 'dark';
-type ResolvedTheme = Exclude<ThemeChoice, 'system'>;
 
-const palette = {
-  light: {
-    canvas: '#ffffff',
-    surface: '#f3f3f3',
-    field: '#f0f0f0',
-    border: '#e0e0e0',
-    ink: '#141414',
-    muted: '#636363',
-    onPrimary: '#ffffff',
-    accent: '#004dbf',
-    accentSurface: '#e8f0ff',
-    danger: '#9f2019',
-    dangerSurface: '#fcebea',
-  },
-  dark: {
-    canvas: '#121212',
-    surface: '#1d1d1d',
-    field: '#262626',
-    border: '#383838',
-    ink: '#f2f2f2',
-    muted: '#a8a8a8',
-    onPrimary: '#141414',
-    accent: '#94bfff',
-    accentSurface: '#1a2d4d',
-    danger: '#ffaaa5',
-    dangerSurface: '#46201d',
-  },
-} as const;
-
-export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
-export const radius = { field: 16, card: 24, pill: 999 } as const;
+export * from './tokens';
 
 type ThemeContextValue = {
   choice: ThemeChoice;
   setChoice: (choice: ThemeChoice) => void;
   scheme: ResolvedTheme;
-  colors: (typeof palette)[ResolvedTheme];
+  colors: PensumColors;
+  /** true, sobald Inter geladen ist; sonst rendert die App mit der Systemschrift. */
+  customFonts: boolean;
   persistenceError: boolean;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 const THEME_KEY = 'pensum.theme';
 
-export function PensumThemeProvider({ children }: { children: ReactNode }) {
+export function PensumThemeProvider({ children, customFonts = false }: { children: ReactNode; customFonts?: boolean }) {
   const system = useColorScheme();
   const [choice, setChoiceState] = useState<ThemeChoice>('system');
   const [persistenceError, setPersistenceError] = useState(false);
@@ -82,7 +55,7 @@ export function PensumThemeProvider({ children }: { children: ReactNode }) {
 
   const scheme = choice === 'system' ? (system === 'dark' ? 'dark' : 'light') : choice;
   return (
-    <ThemeContext.Provider value={{ choice, setChoice, scheme, colors: palette[scheme], persistenceError }}>
+    <ThemeContext.Provider value={{ choice, setChoice, scheme, colors: palette[scheme], customFonts, persistenceError }}>
       {children}
     </ThemeContext.Provider>
   );
