@@ -36,7 +36,8 @@ export function useKarteikarten(deckParam?: string | string[]) {
   const { state } = useSession();
   const userId = state.status === "account" ? state.user.id : null;
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
-  const onStatus = useCallback((s: SaveStatus) => setSaveStatus(s), []);
+  const statusRef = useRef<SaveStatus>("saved");
+  const onStatus = useCallback((s: SaveStatus) => { statusRef.current = s; setSaveStatus(s); }, []);
   const deps = useStoreDeps(onStatus);
 
   const [view, dispatch] = useReducer(viewReducer, initialView);
@@ -122,8 +123,12 @@ export function useKarteikarten(deckParam?: string | string[]) {
       if (r.noRoom) { say(r.message, true); return; }
       dataRef.current = r.data;
       persist();
-      if (r.complete) await guest.clear();
       bump();
+      if (r.complete) {
+        // Gast-Daten erst löschen, wenn das Konto sie sicher hat (flush meldet Fehler über onStatus, nicht als Ausnahme)
+        await store.flush();
+        if (statusRef.current === "saved") await guest.clear();
+      }
       say(r.message);
     })();
     return () => {

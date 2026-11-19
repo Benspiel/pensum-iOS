@@ -45,6 +45,12 @@ export function DeckDialog({ deck, onSubmit, onDelete, onClose }: {
         </View>
         <AppText variant="caption" tone="muted">{MODES[mode].hint}</AppText>
       </View>
+      {creating ? (
+        <View style={styles.group}>
+          <Button title="Mit KI erstellen (Kommt bald)" variant="secondary" disabled accessibilityHint="Noch nicht verfügbar" onPress={() => undefined} />
+          <AppText variant="caption" tone="muted">Bald gibst du nur dein Thema ein und die KI erstellt die Karten für dich.</AppText>
+        </View>
+      ) : null}
       {error ? <AppText tone="danger" accessibilityRole="alert">{error}</AppText> : null}
       <Button title={creating ? "Stapel erstellen" : "Speichern"} onPress={submit} />
       {!creating ? (
