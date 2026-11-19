@@ -13,6 +13,7 @@ import { useSession } from '../../account/session';
 import { databaseId, executeFunction, functionIds, listAllRows, Query, tableIds, tablesDB } from '../../backend';
 import { spacing } from '../../theme';
 import { AppText, Badge, Button, Field, LoadingState, Panel, Screen } from '../../ui';
+import { TwoColumn, useWideLayout } from '../../ui/TwoColumn';
 import { useStoreDeps } from '../../storage';
 import { confirmAction, consentToGemini, errorText } from '../appwrite-tools/actions';
 import { useAccountGuard } from '../appwrite-tools/account-scope';
@@ -22,7 +23,7 @@ import { base64ToBytes } from '../goodnotes/protocol';
 import { deleteQuietly } from '../goodnotes/request-queue';
 import { putHandoff } from '../shared/handoff';
 import type { CanvasHandle } from './canvas';
-import { EditorView } from './editor-view';
+import { EditorView, MapLibrary, showLibrary } from './editor-view';
 import { useGoodnotesExporter } from './goodnotes-export';
 import { usableHand, type Hand } from './hand';
 import { HAND_STYLE, STYLE, clampFontScale, layout, scaleStyle } from './layout';
@@ -32,6 +33,7 @@ import {
 } from './scene';
 import * as S from './state';
 import * as T from './tree';
+import { MAP_COLUMN_WEIGHTS, canvasHeightFor, mapColumnWidth, soloPanelMaxWidth } from './wide';
 
 type MapSummary = { id: string; day: string; topic: string };
 type MindmapRow = Models.Row & { topic: string; day: string; data: string };
@@ -46,6 +48,7 @@ export function MindmapScreen({ userId }: { userId: string }) {
   const { state: session, updatePrefs, registerBeforeLogout } = useSession();
   const deps = useStoreDeps();
   const { height, fontScale } = useWindowDimensions();
+  const { split, inner } = useWideLayout();
   const prefs = session.status === 'account' ? session.user.prefs : undefined;
 
   /* ---- Zustand ---- */
@@ -180,7 +183,7 @@ export function MindmapScreen({ userId }: { userId: string }) {
   }, [root, collapsed, hand, scale, useHandFont]);
   const tools = editor ? S.toolState(editor) : undefined;
   const today = !!current && !!status && current.day === status.day;
-  const canvasHeight = Math.round(Math.min(560, Math.max(340, height * 0.55)));
+  const canvasHeight = canvasHeightFor(height, split, scene ? { sceneWidth: scene.width, sceneHeight: scene.height, canvasWidth: mapColumnWidth(inner, spacing.xl) } : undefined);
   const bigText = PixelRatio.getFontScale() > 1.3;
 
   // Textfeld folgt der Auswahl, solange man nicht gerade darin tippt (Web: renderTools)
@@ -375,9 +378,26 @@ export function MindmapScreen({ userId }: { userId: string }) {
 
   const exportBlocked = !scene || !!exporting;
   const canCreate = S.canCreateToday(status?.usage);
+  const maps = list.map((entry) => ({ id: entry.id, label: S.mapOptionLabel(entry, status?.day) }));
+  const canDelete = !today && !!status;
+  // iPad quer: „Mindmap für heute erstellen.“ links, „Meine Mindmaps.“ rechts; ohne Erstellen steht die Liste in der Seitenleiste des Editors
+  const libraryAbove = split && canCreate && showLibrary(maps, canDelete);
+  const switchTo = (id: string) => { const entry = list.find((item) => item.id === id); if (entry) switchMap(entry); };
+
+  const createPanel = (
+    <Panel style={styles.panel}>
+      <AppText variant="h4" accessibilityRole="header">Mindmap für heute erstellen.</AppText>
+      <Field label="Thema" value={topic} onChangeText={(v) => { setTopic(v); setCreateError(''); }} maxLength={120} editable={!busy} autoCorrect={false} placeholder="z. B. Die Beatles" returnKeyType="done" />
+      <Field label="Hinweise (optional)" value={notes} onChangeText={setNotes} maxLength={500} multiline editable={!busy} placeholder="z. B. für eine Klausur in Klasse 9, Schwerpunkt Entstehung und Einfluss" />
+      {createError ? <FormMessage text={createError} /> : null}
+      <Button title={busy ? 'KI arbeitet …' : 'Mindmap erstellen'} loading={busy} disabled={busy} onPress={create} />
+      <AppText variant="bodySm" tone="muted">Du kannst pro Tag eine Mindmap erstellen. Sie lässt sich danach 3-mal von der KI verändern.</AppText>
+    </Panel>
+  );
 
   return (
     <Screen
+      wide
       title="Mindmap-Generator."
       navigationTitle="Mindmap-Generator"
       description="Nenn ein Thema, die KI baut die Mindmap. Danach änderst du sie mit KI oder direkt im Editor, in Standardschrift oder in deiner eigenen Handschrift."
@@ -393,16 +413,17 @@ export function MindmapScreen({ userId }: { userId: string }) {
         </View>
       ) : null}
 
-      {canCreate ? (
-        <Panel style={styles.panel}>
-          <AppText variant="h4" accessibilityRole="header">Mindmap für heute erstellen.</AppText>
-          <Field label="Thema" value={topic} onChangeText={(v) => { setTopic(v); setCreateError(''); }} maxLength={120} editable={!busy} autoCorrect={false} placeholder="z. B. Die Beatles" returnKeyType="done" />
-          <Field label="Hinweise (optional)" value={notes} onChangeText={setNotes} maxLength={500} multiline editable={!busy} placeholder="z. B. für eine Klausur in Klasse 9, Schwerpunkt Entstehung und Einfluss" />
-          {createError ? <FormMessage text={createError} /> : null}
-          <Button title={busy ? 'KI arbeitet …' : 'Mindmap erstellen'} loading={busy} disabled={busy} onPress={create} />
-          <AppText variant="bodySm" tone="muted">Du kannst pro Tag eine Mindmap erstellen. Sie lässt sich danach 3-mal von der KI verändern.</AppText>
-        </Panel>
-      ) : null}
+      {canCreate ? (split ? (
+        <TwoColumn
+          split
+          primaryWeight={MAP_COLUMN_WEIGHTS.primary}
+          secondaryWeight={MAP_COLUMN_WEIGHTS.secondary}
+          primary={<View style={{ maxWidth: soloPanelMaxWidth(split, libraryAbove), width: '100%' }}>{createPanel}</View>}
+          secondary={libraryAbove ? (
+            <MapLibrary maps={maps} currentId={current?.id ?? ''} canDelete={canDelete} busy={busy} switchMap={switchTo} removeMap={removeMap} panel />
+          ) : undefined}
+        />
+      ) : createPanel) : null}
 
       {loading && !editor ? <LoadingState title="Mindmaps werden geladen" /> : null}
 
@@ -414,11 +435,13 @@ export function MindmapScreen({ userId }: { userId: string }) {
           selectedId={editor.selectedId}
           fitKey={`${current.id}|${useHandFont ? 'hand' : 'std'}|${scale}`}
           canvasHeight={canvasHeight}
+          split={split}
+          libraryAbove={libraryAbove}
           bigText={bigText}
           canvasRef={canvas}
-          maps={list.map((entry) => ({ id: entry.id, label: S.mapOptionLabel(entry, status?.day) }))}
+          maps={maps}
           currentId={current.id}
-          canDelete={!today && !!status}
+          canDelete={canDelete}
           busy={busy}
           hasHand={!!hand}
           useHandFont={useHandFont}
@@ -437,7 +460,7 @@ export function MindmapScreen({ userId }: { userId: string }) {
           exporting={exporting}
           exportBlocked={exportBlocked}
           on={{
-            switchMap: (id) => { const entry = list.find((item) => item.id === id); if (entry) switchMap(entry); },
+            switchMap: switchTo,
             removeMap,
             addChild: () => edit((s) => T.addChild(s.root, s.selectedId), focusText),
             addSibling: () => edit((s) => T.addSibling(s.root, s.selectedId), focusText),
