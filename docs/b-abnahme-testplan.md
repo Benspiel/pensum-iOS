@@ -116,7 +116,7 @@ Legende: **G** = Gast, **K** = Konto (T1), **K2** = zweites Konto (T2).
 | --- | --- | --- | --- |
 | Ü1 | Kaltstart, Warmstart, Hintergrund/Vordergrund je Werkzeug | Kein Datenverlust, keine veralteten Anzeigen | |
 | Ü2 | Kontowechsel T1 → T2 → T1 | Jedes Konto sieht nur seine Daten, keine Reste im Speicher der anderen | |
-| Ü3 | Tool-Sichtbarkeit nach Rolle (Gast, Konto, Tester) laut Katalog | Spiele/Tester-Tools gesperrt bzw. „Kommt bald“ wie im Web | |
+| Ü3 | Tool-Sichtbarkeit nach Rolle (Gast, Konto, Tester) laut Katalog | Tester-Tools (KI-Chat) gesperrt bzw. unsichtbar wie im Web; Spiele kommen in der App nicht vor | |
 | Ü4 | Direktlink `pensum://tools/notenrechner` usw. im Kaltstart | Öffnet das Tool (Auth-Links: Rolle A) | |
 | Ü5 | Sitzung abgelaufen (Appwrite-Sitzung serverseitig beenden) | Verständliche Meldung, keine Daten des Kontos mehr sichtbar | |
 
@@ -183,6 +183,6 @@ Testnachweis = automatische Tests im App-Repo (`npm test`, `node:test` via `tsx`
 1. Kein Gerätelauf bisher; alle Zeilen in Teil 1 offen.
 2. Goodnotes: Handschrift und Regler sind gebaut (Branch `codex/pensum-ios-b-goodnotes-controls`), aber nur im Browser und per Unit-Test belegt; Touch im WKWebView und der Konto-Upsert gegen echtes Appwrite sind offen.
 3. Karteikarten: KI-Erzeugung fehlt (Team `ki-tester`).
-4. Spiele: im Web „Kommt bald“, in der App ebenso nicht gebaut.
+4. Spiele: bewusst nicht Teil der iOS-App (Entscheidung des Auftraggebers).
 5. Konto-Präferenzen und Abmelde-Reihenfolge (ungespeicherte Änderungen) müssen auf dem Gerät belegt werden (N12).
 6. Rechte an den Papier-Vorlagen in `templates.js` vor Veröffentlichung klären (siehe `docs/THIRD-PARTY.md`).
