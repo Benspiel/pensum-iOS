@@ -1,2 +1,3 @@
 # Preserve the upstream browser build and its documented SHA-256.
 src/features/goodnotes/engine/jspdf.umd.min.js -text
+src/features/goodnotes/host-html.generated.ts text eol=lf
