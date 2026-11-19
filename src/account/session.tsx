@@ -16,7 +16,7 @@ import {
 import { AppState } from 'react-native';
 import { type Models, OAuthProvider } from 'react-native-appwrite';
 import { account, client, executeFunction, functionIds, ID, Query, teams } from '../backend';
-import { teamIds } from '../backend/config';
+import { googleAuthEnabled, teamIds } from '../backend/config';
 import { asPensumError, statusCode } from '../backend/errors';
 import {
   noToolAccess, PensumError, type SessionState, type SessionUser, type ToolAccess,
@@ -347,6 +347,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     const link = parseAuthLink(url);
     if (!link) return;
     if (link.kind === 'oauth' || link.kind === 'oauth-failure') {
+      if (!googleAuthEnabled) return;
       void finishOAuth(link).catch((error) => setOAuthError(asPensumError(error)));
     } else {
       setEmailLink(link);
@@ -366,6 +367,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }, [acceptLink]);
 
   const signInWithGoogle = useCallback(async () => {
+    if (!googleAuthEnabled) {
+      throw new PensumError('forbidden', 'Google-Anmeldung ist für diesen Build nicht aktiviert.');
+    }
     const nonce = Crypto.randomUUID();
     const base = callbackUrl('oauth');
     const loginUrl = await exclusive(async () => {

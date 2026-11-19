@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { account } from '../../src/backend';
+import { googleAuthEnabled } from '../../src/backend/config';
 import { PensumError, type SessionUser } from '../../src/contracts';
 import { Notice, useAccountAction } from '../../src/account/forms';
 import {
@@ -78,8 +79,8 @@ function GuestAccount() {
           onPress={() => { setRegistering(!registering); setPassword(''); action.reset(); }} />
         <Button title="Passwort vergessen?" variant="plain" disabled={action.busy}
           onPress={() => router.push('/auth/recover')} />
-        <Button title="Mit Google anmelden" variant="secondary" disabled={action.busy}
-          onPress={() => void action.run(session.signInWithGoogle)} />
+        {googleAuthEnabled ? <Button title="Mit Google anmelden" variant="secondary" disabled={action.busy}
+          onPress={() => void action.run(session.signInWithGoogle)} /> : null}
         <Notice notice={action.notice ?? (session.oauthError ? { error: true, message: session.oauthError.message } : null)} />
       </Card>
       <Card>
