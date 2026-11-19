@@ -112,3 +112,25 @@ export function bytesToBase64(bytes: Uint8Array): string {
   }
   return r;
 }
+
+/** Regler wie im Web (index.html: sizeInput, widthInput, jitterInput). */
+export const RANGES = {
+  size: { min: 0.7, max: 1.6, step: 0.05 },
+  weight: { min: 0.3, max: 3, step: 0.05 },
+  jitter: { min: 0, max: 2, step: 0.1 },
+} as const;
+export type RangeId = keyof typeof RANGES;
+
+/** Einen Schritt hoch oder runter, auf die Schrittweite gerundet und begrenzt (kein 0.30000000000000004). */
+export function stepValue(id: RangeId, value: number, dir: 1 | -1): number {
+  const { min, max, step } = RANGES[id];
+  const next = Math.round((value + dir * step) / step) * step;
+  return Math.min(max, Math.max(min, Math.round(next * 1000) / 1000));
+}
+
+/** Anzeigetexte wie im Web. */
+export function rangeLabel(id: RangeId, value: number): string {
+  if (id === "size") return `${value.toFixed(1)}×`;
+  if (id === "weight") return Math.abs(value - 1) < 0.001 ? "wie die Schrift" : `${value.toFixed(2)}×`;
+  return value < 0.4 ? "keine" : value < 0.9 ? "wenig" : value < 1.3 ? "mittel" : "stark";
+}
