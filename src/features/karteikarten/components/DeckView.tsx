@@ -19,7 +19,8 @@ interface Props {
   deck: Deck;
   tab: DeckTab;
   onTab: (t: DeckTab) => void;
-  onBack: () => void;
+  /** Ohne `onBack` (Detailspalte auf dem iPad, Stapelliste steht daneben) gibt es keinen Zurück-Knopf. */
+  onBack?: () => void;
   onEditDeck: () => void;
   onStart: (type: StudyType) => void;
   onAddCard: (front: string, back: string) => ActionResult;
@@ -58,7 +59,7 @@ export function DeckView({ deck, tab, onTab, onBack, onEditDeck, onStart, onAddC
             </View>
           )}
           <AppText variant="bodySm" tone="muted">{deckMeta(deck)}{level ? ` · ${plural(due, "Karte", "Karten")} zu lernen` : ""}</AppText>
-          <StartButtons onStart={onStart} disabled={!deck.cards.length} />
+          <StartButtons onStart={onStart} disabled={!deck.cards.length} compact={!onBack} />
           {deck.cards.length ? null : noCards}
         </Panel>
       ) : tab === "add" ? (

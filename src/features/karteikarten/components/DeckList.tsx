@@ -17,11 +17,15 @@ interface Props {
   onNewDeck: () => void;
   onOpen: (id: string) => void;
   onQuickStart: (deck: Deck) => void;
+  /** iPad: schmale linke Spalte neben dem Stapel (kleinere Überschrift und Zeilen). */
+  master?: boolean;
+  /** iPad: der gerade rechts geöffnete Stapel wird in der Liste markiert. */
+  selectedId?: string | null;
 }
 
-export function DeckList({ data, signedIn, saveStatus, onLogin, onNewDeck, onOpen, onQuickStart }: Props) {
+export function DeckList({ data, signedIn, saveStatus, onLogin, onNewDeck, onOpen, onQuickStart, master = false, selectedId = null }: Props) {
   const { colors } = usePensumTheme();
-  const wide = useWide();
+  const wide = useWide() && !master;
   const stats = listStats(data);
   return (
     <View style={styles.page}>
@@ -46,7 +50,7 @@ export function DeckList({ data, signedIn, saveStatus, onLogin, onNewDeck, onOpe
 
       {data.decks.length ? (
         <View style={styles.decks} accessibilityLabel="Deine Stapel">
-          {data.decks.map((deck) => <DeckRow key={deck.id} deck={deck} onOpen={onOpen} onQuickStart={onQuickStart} />)}
+          {data.decks.map((deck) => <DeckRow key={deck.id} deck={deck} onOpen={onOpen} onQuickStart={onQuickStart} compact={master} selected={deck.id === selectedId} />)}
           {stats.full ? <AppText variant="bodySm" tone="muted" style={styles.center}>Du hast die maximal {MAX_DECKS} Stapel angelegt. Lösche einen, um einen neuen zu erstellen.</AppText> : null}
         </View>
       ) : (
@@ -61,14 +65,14 @@ export function DeckList({ data, signedIn, saveStatus, onLogin, onNewDeck, onOpe
   );
 }
 
-function DeckRow({ deck, onOpen, onQuickStart }: { deck: Deck; onOpen: (id: string) => void; onQuickStart: (deck: Deck) => void }) {
+function DeckRow({ deck, onOpen, onQuickStart, compact, selected }: { deck: Deck; onOpen: (id: string) => void; onQuickStart: (deck: Deck) => void; compact: boolean; selected: boolean }) {
   const { colors } = usePensumTheme();
   const label = goLabel(deck);
   const empty = !deck.cards.length;
   return (
-    <Card style={styles.deck}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${deck.name}, ${deckMeta(deck)}`} onPress={() => onOpen(deck.id)} style={styles.deckOpen}>
-        <View style={[styles.squircle, { backgroundColor: colors.ink }]}>
+    <Card style={[styles.deck, selected && { backgroundColor: colors.surface, borderColor: colors.ink }]}>
+      <Pressable accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${deck.name}, ${deckMeta(deck)}`} onPress={() => onOpen(deck.id)} style={styles.deckOpen}>
+        <View style={[styles.squircle, compact && styles.squircleCompact, { backgroundColor: colors.ink }]}>
           <AppText variant="h3" style={[styles.initial, { color: colors.onPrimary }]}>{(deck.name[0] ?? "?").toUpperCase()}</AppText>
         </View>
         <View style={styles.grow}>
@@ -82,7 +86,7 @@ function DeckRow({ deck, onOpen, onQuickStart }: { deck: Deck; onOpen: (id: stri
         accessibilityLabel={`${deck.name} lernen, ${dueCount(deck)} Karten`}
         disabled={empty}
         onPress={() => onQuickStart(deck)}
-        style={({ pressed }) => [styles.go, { borderColor: colors.ink, backgroundColor: pressed ? colors.ink : "transparent", opacity: empty ? 0.35 : 1 }]}
+        style={({ pressed }) => [styles.go, compact && styles.goCompact, { borderColor: colors.ink, backgroundColor: pressed ? colors.ink : "transparent", opacity: empty ? 0.35 : 1 }]}
       >
         {({ pressed }) => (
           <AppText variant="h4" style={[styles.goText, { color: pressed ? colors.onPrimary : colors.ink }]}>{label ?? "→"}</AppText>
@@ -108,9 +112,11 @@ const styles = StyleSheet.create({
   deck: { flexDirection: "row", alignItems: "center", gap: spacing.lg, padding: spacing.lg },
   deckOpen: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.lg, minWidth: 0 },
   squircle: { width: 64, height: 64, borderRadius: squircleRadius(64), borderCurve: "continuous", alignItems: "center", justifyContent: "center" },
+  squircleCompact: { width: 52, height: 52, borderRadius: squircleRadius(52) },
   initial: { fontSize: 24, lineHeight: 28 },
   deckName: { fontSize: 18, lineHeight: 23 },
   deckMeta: { marginTop: 2 },
   go: { width: 56, height: 56, borderRadius: radius.pill, borderWidth: 3, alignItems: "center", justifyContent: "center" },
+  goCompact: { width: 48, height: 48 },
   goText: { fontSize: 18, lineHeight: 22, fontVariant: ["tabular-nums"] },
 });

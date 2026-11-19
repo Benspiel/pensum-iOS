@@ -6,14 +6,19 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { isLevelMode } from "../core";
 import type { Deck } from "../core";
+import { STUDY_MAX_WIDTH, studyCardMinHeight, studyFaceFontSize } from "../layout";
 import { currentCard, loadingSubtitle, loadingTitle, progressPercent, resultTexts, roundBadge } from "../session-model";
 import type { Round } from "../session-model";
 import { radius, spacing, usePensumTheme } from "../../../theme";
 import { AppText, Badge, Button, Field, Panel } from "../../../ui";
-import { IconButton, LevelBoxes, LoadingPanel, SYMBOLS, TitleBar, useWide } from "./common";
+import { IconButton, LevelBoxes, LoadingPanel, SYMBOLS, TitleBar } from "./common";
 
 export function LoadingRound({ deck, round, count, reduceMotion = false }: { deck: Deck | undefined; round: Round; count: number; reduceMotion?: boolean }) {
-  return <LoadingPanel title={loadingTitle(round.type)} subtitle={loadingSubtitle(deck ? deck.name : "", count)} reduceMotion={reduceMotion} />;
+  return (
+    <View style={styles.centered}>
+      <LoadingPanel title={loadingTitle(round.type)} subtitle={loadingSubtitle(deck ? deck.name : "", count)} reduceMotion={reduceMotion} />
+    </View>
+  );
 }
 
 interface StudyProps {
@@ -59,8 +64,8 @@ function FlyAway({ leaving, reduceMotion, onGone, children }: { leaving: boolean
 
 /** Eine Seite der Lernkarte: Beschriftung in Versalien, großer Text, optional Hinweis (Web: .kk-face). */
 function FaceContent({ tag, text, hint, color }: { tag: string; text: string; hint?: string; color?: string }) {
-  const wide = useWide();
-  const size = wide ? 34 : 26;
+  const { width } = useWindowDimensions();
+  const size = studyFaceFontSize(width);
   return (
     <>
       <AppText variant="label" style={[styles.tag, color ? { color } : null]}>{tag}</AppText>
@@ -109,7 +114,7 @@ function FlipCard({ front, back, flipped, reduceMotion, minHeight, hint }: { fro
 
 export function StudyView({ deck, round, onQuit, onFlip, onCheck, onOverride, onGrade, onNext, reduceMotion = false }: StudyProps) {
   const { colors } = usePensumTheme();
-  const { height } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [leaving, setLeaving] = useState<boolean | null>(null); // Bewertung der wegfliegenden Karte
   const card = currentCard(deck, round);
   if (!card) return null;
@@ -120,7 +125,7 @@ export function StudyView({ deck, round, onQuit, onFlip, onCheck, onOverride, on
   const busy = leaving !== null;
   const answered = round.right + round.wrong;
   // Karte füllt wie im Web den Platz bis zu den Knöpfen (Web: flex: 1, min-height 280)
-  const minHeight = Math.max(280, Math.min(560, height - 380));
+  const minHeight = studyCardMinHeight(width, height);
   /** Bewerten mit Wegfliegen: erst fliegt die Karte, dann zählt die Bewertung (im Test: „Weiter“). */
   const leave = (ok: boolean) => { if (!busy) setLeaving(ok); };
   const onGone = () => {
@@ -131,7 +136,7 @@ export function StudyView({ deck, round, onQuit, onFlip, onCheck, onOverride, on
   };
 
   return (
-    <View style={styles.page}>
+    <View style={[styles.page, styles.centered]}>
       <View style={styles.bar}>
         <IconButton symbol={SYMBOLS.close} label="Lernrunde beenden" onPress={onQuit} />
         <View
@@ -209,7 +214,7 @@ export function ResultView({ deck, round, onToDeck, onAgain, onRetryWrong }: {
 }) {
   const t = resultTexts(deck, round);
   return (
-    <View style={styles.page}>
+    <View style={[styles.page, styles.centered]}>
       <TitleBar title={deck.name} onBack={onToDeck} backLabel="Zurück zum Stapel" />
       <Panel style={styles.summary}>
         <View style={styles.summaryTop}>
@@ -234,6 +239,8 @@ export function ResultView({ deck, round, onToDeck, onAgain, onRetryWrong }: {
 
 const styles = StyleSheet.create({
   page: { gap: spacing.lg },
+  /** iPad: Lernkarte, Ladeschritt und Ergebnis zentriert mit begrenzter Breite (auf dem Telefon ohne Wirkung) */
+  centered: { width: "100%", maxWidth: STUDY_MAX_WIDTH, alignSelf: "center" },
   center: { textAlign: "center" },
   fullWidth: { alignSelf: "stretch" },
   bar: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

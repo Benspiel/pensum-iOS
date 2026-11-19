@@ -195,10 +195,11 @@ export function StartDialog({ deck, onStart, onClose }: { deck: Deck; onStart: (
 }
 
 /** Die großen Knöpfe „Üben“ und „Test“ mit ihrer Unterzeile (Web: .kk-start; ab 640 nebeneinander, ab 768 deutlich größer). */
-export function StartButtons({ onStart, disabled = false, stacked = false }: { onStart: (type: StudyType) => void; disabled?: boolean; stacked?: boolean }) {
+export function StartButtons({ onStart, disabled = false, stacked = false, compact = false }: { onStart: (type: StudyType) => void; disabled?: boolean; stacked?: boolean; compact?: boolean }) {
   const { width } = useWindowDimensions();
-  const columns = !stacked && width >= 640;
-  const large = !stacked && width >= 768;
+  // compact: schmale Detailspalte auf dem iPad – nebeneinander, aber nicht die großen Knöpfe
+  const columns = !stacked && (compact || width >= 640);
+  const large = !stacked && !compact && width >= 768;
   return (
     <View style={[styles.start, columns && styles.startColumns, large && { gap: spacing.lg }]}>
       <StartButton title="Üben" sub="Karte umdrehen, selbst bewerten" primary large={large} columns={columns} disabled={disabled} onPress={() => onStart("practice")} />

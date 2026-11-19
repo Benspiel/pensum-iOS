@@ -5,14 +5,17 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import type { Deck, StudyType } from "./core";
+import type { DeckTab } from "./session-model";
 import { useKarteikarten } from "./hooks";
 import { CardDialog, DeckDialog, StartDialog } from "./components/Dialogs";
 import { DeckList } from "./components/DeckList";
 import { DeckView } from "./components/DeckView";
 import { LoadingRound, ResultView, StudyView } from "./components/Study";
-import { LoadingPanel } from "./components/common";
+import { EmptyCard, LoadingPanel } from "./components/common";
+import { detailPlaceholder, kkLayout, selectedDeckId } from "./layout";
 import { radius, spacing, usePensumTheme } from "../../theme";
-import { AppText, ErrorState, LoadingState, Screen } from "../../ui";
+import { AppText, ErrorState, LoadingState, Panel, Screen } from "../../ui";
+import { TwoColumn, useWideLayout } from "../../ui/TwoColumn";
 import { useSession } from "../../account/session";
 
 type Dialog =
@@ -28,6 +31,9 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
   const { colors } = usePensumTheme();
   const [dialog, setDialog] = useState<Dialog>(null);
   const { view, data, actions } = k;
+  const { split } = useWideLayout();
+  const layout = kkLayout(view.name, split);
+  const inSplit = layout.mode === "split";
   const login = () => router.push("/konto");
 
   // Verwaister Stapel (z. B. gelöscht): zurück zur Liste
@@ -35,13 +41,35 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
   const missing = viewDeckId !== null && !k.deckById(viewDeckId);
   useEffect(() => { if (missing) actions.showList(); }, [missing]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Stapelansicht; `withBack` = mit Zurück-Knopf (einspaltig). In der Detailspalte (iPad) steht die Liste daneben. */
+  function deckView(deck: Deck, tab: DeckTab, withBack: boolean) {
+    return (
+      <DeckView
+        key={deck.id}
+        deck={deck}
+        tab={tab}
+        onTab={actions.setTab}
+        onBack={withBack ? actions.showList : undefined}
+        onEditDeck={() => setDialog({ kind: "editDeck", id: deck.id })}
+        onStart={(type: StudyType) => void actions.start(deck.id, type)}
+        onAddCard={(front, back) => actions.addCard(deck.id, front, back)}
+        onEditCard={(card) => setDialog({ kind: "editCard", deckId: deck.id, cardId: card.id })}
+        onDeleteCard={(card) => actions.deleteCard(deck.id, card.id)}
+        ki={k.ki}
+        onKiToggle={actions.kiToggle}
+        onKiAdd={() => actions.kiAdd(deck.id)}
+        onKiDiscard={actions.kiDiscard}
+      />
+    );
+  }
+
   let body;
   if (state.status === "loading") body = <LoadingPanel title="Deine Karten werden geladen" reduceMotion={k.reduceMotion} />;
   else if (state.status === "error") body = <ErrorState message={state.error.message} />;
   else if (k.loadError) body = <ErrorState title="Laden fehlgeschlagen." message={k.loadError} onRetry={actions.retryLoad} />;
   else if (view.name === "boot") body = <LoadingPanel title="Deine Karten werden geladen" reduceMotion={k.reduceMotion} />;
-  else if (view.name === "list") {
-    body = (
+  else if (view.name === "list" || (view.name === "deck" && inSplit)) {
+    const deckList = (
       <DeckList
         data={data}
         signedIn={k.signedIn}
@@ -50,31 +78,27 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
         onNewDeck={() => setDialog({ kind: "newDeck" })}
         onOpen={(id) => actions.openDeck(id)}
         onQuickStart={(deck: Deck) => setDialog({ kind: "start", id: deck.id })}
+        master={inSplit}
+        selectedId={selectedDeckId(view)}
       />
     );
+    if (!inSplit) body = deckList;
+    else {
+      const deck = view.name === "deck" ? k.deckById(view.id) : undefined;
+      const hint = detailPlaceholder(data.decks.length);
+      const detail = view.name === "deck" && deck ? deckView(deck, view.tab, false) : (
+        <Panel style={styles.placeholder}><EmptyCard compact title={hint.title} message={hint.message} /></Panel>
+      );
+      // iPad: Stapelliste links, gewählter Stapel rechts
+      body = <TwoColumn split primary={deckList} secondary={detail} primaryWeight={2} secondaryWeight={3} />;
+    }
   } else if (view.name === "loading") {
     body = <LoadingRound deck={k.deckById(view.round.deckId)} round={view.round} count={view.count} reduceMotion={k.reduceMotion} />;
   } else {
     const deck = viewDeckId ? k.deckById(viewDeckId) : undefined;
     if (!deck) body = <LoadingState />;
     else if (view.name === "deck") {
-      body = (
-        <DeckView
-          deck={deck}
-          tab={view.tab}
-          onTab={actions.setTab}
-          onBack={actions.showList}
-          onEditDeck={() => setDialog({ kind: "editDeck", id: deck.id })}
-          onStart={(type: StudyType) => void actions.start(deck.id, type)}
-          onAddCard={(front, back) => actions.addCard(deck.id, front, back)}
-          onEditCard={(card) => setDialog({ kind: "editCard", deckId: deck.id, cardId: card.id })}
-          onDeleteCard={(card) => actions.deleteCard(deck.id, card.id)}
-          ki={k.ki}
-          onKiToggle={actions.kiToggle}
-          onKiAdd={() => actions.kiAdd(deck.id)}
-          onKiDiscard={actions.kiDiscard}
-        />
-      );
+      body = deckView(deck, view.tab, true);
     } else if (view.name === "study") {
       body = (
         <StudyView
@@ -106,7 +130,7 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
   const closeDialog = () => setDialog(null);
 
   return (
-    <Screen navigationTitle="Karteikarten">
+    <Screen navigationTitle="Karteikarten" wide={split}>
       {k.notice ? (
         <Pressable
           onPress={k.dismissNotice}
@@ -141,5 +165,6 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
 
 const styles = StyleSheet.create({
   body: { gap: spacing.lg },
+  placeholder: { minHeight: 320, justifyContent: "center" },
   notice: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderRadius: radius.field, borderCurve: "continuous" },
 });

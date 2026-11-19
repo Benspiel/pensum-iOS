@@ -3,10 +3,11 @@
  * Optik: Bausteine aus src/ui, Farben/Abstände aus dem Theme. Abstände Web → App: s-xs 8 = sm, s-sm 12 = md, s-md 16 = lg, s-lg 24 = xl. */
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
 import { useContext, useEffect, useRef, type ReactNode } from "react";
-import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LEVELS, levelCounts } from "../core";
 import type { Deck } from "../core";
+import { DIALOG_MAX_WIDTH, isTabletWindow } from "../layout";
 import { saveNote } from "../session-model";
 import type { SaveStatus } from "../session-model";
 import { WIDE_BREAKPOINT, radius, spacing, usePensumTheme } from "../../../theme";
@@ -46,11 +47,12 @@ export function IconButton({ symbol, label, onPress, disabled = false }: { symbo
 
 /* ---------- Kopfzeile (Web: .kk-bar mit h1) ---------- */
 
-export function TitleBar({ title, onBack, backLabel, onAction, actionLabel }: { title: string; onBack: () => void; backLabel: string; onAction?: () => void; actionLabel?: string }) {
+/** Ohne `onBack` (Detailspalte auf dem iPad, die Liste steht daneben) entfällt der Zurück-Knopf. */
+export function TitleBar({ title, onBack, backLabel, onAction, actionLabel }: { title: string; onBack?: () => void; backLabel: string; onAction?: () => void; actionLabel?: string }) {
   const wide = useWide();
   return (
     <View style={styles.bar}>
-      <IconButton symbol={SYMBOLS.back} label={backLabel} onPress={onBack} />
+      {onBack ? <IconButton symbol={SYMBOLS.back} label={backLabel} onPress={onBack} /> : null}
       <AppText variant="h1" accessibilityRole="header" numberOfLines={2} style={[styles.barTitle, wide ? { fontSize: 36, lineHeight: 42 } : { fontSize: 28, lineHeight: 33 }]}>{title}</AppText>
       {onAction && actionLabel ? <IconButton symbol={SYMBOLS.edit} label={actionLabel} onPress={onAction} /> : null}
     </View>
@@ -76,13 +78,34 @@ export function FormMessage({ text }: { text: string }) {
 
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const { colors } = usePensumTheme();
+  const { width, height, fontScale } = useWindowDimensions();
+  const head = (
+    <View style={styles.sheetHead}>
+      <AppText variant="h3" accessibilityRole="header" style={styles.flex}>{title}</AppText>
+      <View style={styles.sheetClose}><IconButton symbol={SYMBOLS.close} label="Schließen" onPress={onClose} /></View>
+    </View>
+  );
+  // iPad: zentriertes Blatt mit begrenzter Breite über abgedunkeltem Screen
+  if (isTabletWindow(width, height, fontScale)) {
+    return (
+      <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={[styles.flex, styles.scrim]}>
+          <SafeAreaView style={styles.centerWrap} edges={["top", "left", "right", "bottom"]}>
+            <View style={[styles.centerSheet, { backgroundColor: colors.canvas, borderColor: colors.hairlineSoft, maxWidth: DIALOG_MAX_WIDTH }]} accessibilityViewIsModal>
+              {head}
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetBody} style={styles.centerScroll}>
+                {children}
+              </ScrollView>
+            </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </Modal>
+    );
+  }
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={[styles.sheet, { backgroundColor: colors.canvas }]} edges={["top", "left", "right", "bottom"]}>
-        <View style={styles.sheetHead}>
-          <AppText variant="h3" accessibilityRole="header" style={styles.flex}>{title}</AppText>
-          <View style={styles.sheetClose}><IconButton symbol={SYMBOLS.close} label="Schließen" onPress={onClose} /></View>
-        </View>
+        {head}
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetBody} automaticallyAdjustKeyboardInsets>
           {children}
         </ScrollView>
@@ -234,6 +257,10 @@ const styles = StyleSheet.create({
   sheetHead: { flexDirection: "row", alignItems: "flex-start", gap: spacing.lg, paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
   sheetClose: { marginTop: -spacing.sm, marginRight: -spacing.sm },
   sheetBody: { padding: spacing.xl, gap: spacing.lg },
+  scrim: { backgroundColor: "rgba(0,0,0,0.4)" },
+  centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  centerSheet: { width: "100%", maxHeight: "100%", flexShrink: 1, borderRadius: radius.card, borderCurve: "continuous", borderWidth: 1, overflow: "hidden" },
+  centerScroll: { flexGrow: 0, flexShrink: 1 },
   note: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   dot: { width: 8, height: 8, borderRadius: 4, borderWidth: 2, marginTop: 7 },
   noteLink: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start" },
