@@ -22,6 +22,10 @@ async function handle(msg) {
       const bytes = Uint8Array.from(atob(msg.base64), (c) => c.charCodeAt(0));
       engine.state.custom = await engine.inspectTemplate(bytes.buffer, msg.name);
       post({ type: "template-ok", id: msg.id, pageSize: engine.state.custom.pageSize, hasInk: !!engine.state.custom.hasInk });
+    } else if (msg.type === "set-hand") {
+      const hand = msg.packed ? engine.unpackHand(msg.packed) : null;
+      engine.state.hand = hand && Object.keys(hand.glyphs).length ? hand : null;
+      post({ type: "hand-set", id: msg.id, count: engine.state.hand ? Object.keys(engine.state.hand.glyphs).length : 0 });
     } else if (msg.type === "clear-template") {
       engine.state.custom = null; post({ type: "template-cleared", id: msg.id });
     }

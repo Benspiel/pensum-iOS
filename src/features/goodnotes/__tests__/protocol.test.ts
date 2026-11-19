@@ -60,3 +60,56 @@ test("Base64: Hin und zurück für alle Restlängen", () => {
   }
   assert.deepEqual([...base64ToBytes("SGk=")], [72, 105]);
 });
+
+import { stepValue, rangeLabel, RANGES } from "../protocol";
+
+test("Regler: Schritte runden sauber und bleiben im Bereich", () => {
+  assert.equal(stepValue("size", 1, 1), 1.05);
+  assert.equal(stepValue("size", 1.05, -1), 1);
+  assert.equal(stepValue("size", RANGES.size.max, 1), 1.6);
+  assert.equal(stepValue("size", RANGES.size.min, -1), 0.7);
+  assert.equal(stepValue("weight", 0.3, -1), 0.3);
+  assert.equal(stepValue("weight", 3, 1), 3);
+  assert.equal(stepValue("jitter", 0.1 + 0.2, 1), 0.4);
+  let v: number = 1;
+  for (let i = 0; i < 100; i++) v = stepValue("jitter", v, -1);
+  assert.equal(v, 0);
+});
+
+test("Regler: Beschriftung", () => {
+  assert.equal(rangeLabel("size", 1), "1.0×");
+  assert.equal(rangeLabel("weight", 1), "wie die Schrift");
+  assert.equal(rangeLabel("weight", 1.5), "1.50×");
+  assert.deepEqual([0, 0.5, 1, 1.5].map((v) => rangeLabel("jitter", v)), ["keine", "wenig", "mittel", "stark"]);
+});
+
+import { parsePadMessage, padNextLabel, padProgressLabel, handVaryLabel } from "../protocol";
+import { GOODNOTES_PAD_HTML } from "../host-html.generated";
+
+test("Pad-Nachrichten", () => {
+  const st = '{"type":"pad-state","idx":2,"char":"c","total":60,"done":[true,false],"doneCount":1,"current":false}';
+  assert.deepEqual(parsePadMessage(st), { type: "pad-state", idx: 2, char: "c", total: 60, done: [true, false], doneCount: 1, current: false });
+  assert.equal(parsePadMessage('{"type":"pad-state","idx":"x"}'), null);
+  assert.equal(parsePadMessage('{"type":"packed","id":"a","packed":{"glyphs":{"a":{}}}}')!.type, "packed");
+  assert.equal(parsePadMessage('{"type":"packed","id":"a","packed":{}}'), null);
+  assert.equal(parsePadMessage("kaputt"), null);
+  assert.equal(parsePadMessage('{"type":"pad-error","id":"a"}')!.type, "pad-error");
+  assert.deepEqual(parseHostMessage('{"type":"hand-set","id":"h","count":3}'), { type: "hand-set", id: "h", count: 3 });
+});
+
+test("Pad-Beschriftungen wie im Web", () => {
+  assert.equal(padNextLabel(59, 60, true), "Fertig");
+  assert.equal(padNextLabel(3, 60, true), "Weiter");
+  assert.equal(padNextLabel(3, 60, false), "Überspringen");
+  assert.equal(padProgressLabel({ idx: 0, total: 60, doneCount: 0 }), "Zeichen 1 von 60 · 0 gezeichnet");
+  assert.deepEqual([0.3, 1, 1.4, 1.5].map(handVaryLabel), ["leicht", "mittel", "mittel", "stark"]);
+});
+
+test("Pad-HTML: lokal, Skripte parsen, Canvas vorhanden", () => {
+  assert.ok(GOODNOTES_PAD_HTML.includes('<canvas id="pad">'));
+  const scripts = [...GOODNOTES_PAD_HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1] as string);
+  assert.equal(scripts.length, 1);
+  assert.doesNotThrow(() => new Function(scripts[0]!));
+  const shell = GOODNOTES_PAD_HTML.replace(/<script>[\s\S]*?<\/script>/g, "").replace(/url\(data:[^)]*\)/g, "");
+  assert.ok(!/https?:\/\//i.test(shell), "keine externen Ressourcen");
+});

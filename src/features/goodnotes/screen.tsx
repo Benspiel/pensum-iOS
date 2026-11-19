@@ -3,17 +3,20 @@
 import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
 import { radius, spacing, usePensumTheme } from "../../theme";
 import { AppText, Button, Card, ErrorState, Field, Screen } from "../../ui";
 import { takeHandoff } from "../shared/handoff";
+import { HandPad } from "./HandPad";
+import { handInfo } from "./hand-store";
 import { GOODNOTES_HOST_HTML } from "./host-html.generated";
+import { useHand } from "./useHand";
 import {
-  DEFAULT_SETTINGS, FONTS, INKS, PAPERS, base64ToBytes, bytesToBase64, createIdGenerator, exportFileNames, exportHint,
-  pageCountLabel, parseHostMessage, type HostMessage, type HostRequest, type InkSettings,
+  DEFAULT_SETTINGS, FONTS, HAND_FONT, HAND_VARY, handVaryLabel, INKS, PAPERS, base64ToBytes, bytesToBase64, createIdGenerator, exportFileNames, exportHint,
+  pageCountLabel, parseHostMessage, rangeLabel, stepValue, type RangeId, type HostMessage, type HostRequest, type InkSettings,
 } from "./protocol";
 
 const SAMPLE = "# Lernzettel Biologie\n\nDie Zelle ist die kleinste Einheit des Lebens.\n- Zellkern: enthält die DNA\n- Mitochondrien: Kraftwerke der Zelle\n- Ribosomen: bauen Proteine";
@@ -60,6 +63,11 @@ export default function GoodnotesScreen() {
     if (m.type === "error") p.reject(new Error(m.message)); else p.resolve(m);
   }, []);
 
+  const say = useMemo(() => ({ notice: (t: string) => { setNotice(t); setError(null); }, error: (t: string) => setError(t) }), []);
+  const hand = useHand(call, ready, say);
+  // Ohne Handschrift darf sie nicht ausgewählt bleiben (Web: selectFont("Caveat"))
+  useEffect(() => { if (hand.loaded && !hand.count && settings.font === HAND_FONT) setSettings((s) => ({ ...s, font: "Caveat", handVary: 0 })); }, [hand.loaded, hand.count, settings.font]);
+
   // Vorschau neu rendern (mit kurzer Verzögerung wie im Web)
   useEffect(() => {
     if (!ready) return;
@@ -71,7 +79,7 @@ export default function GoodnotesScreen() {
       } catch (e) { if (!stale) setError(e instanceof Error ? e.message : "Die Vorschau konnte nicht erstellt werden."); }
     }, 250);
     return () => { stale = true; clearTimeout(t); };
-  }, [ready, text, settings, template, call]);
+  }, [ready, text, settings, template, hand.packed, call]);
 
   const patch = (p: Partial<InkSettings>) => setSettings((s) => ({ ...s, ...p }));
 
@@ -120,6 +128,18 @@ export default function GoodnotesScreen() {
     </Pressable>
   );
 
+
+  const stepper = (id: RangeId, label: string, value: number, key: "size" | "weight" | "jitter") => (
+    <View key={id} style={styles.stepper}>
+      <View style={{ flex: 1 }}>
+        <AppText variant="label">{label}</AppText>
+        <AppText variant="caption" tone="muted" accessibilityLiveRegion="polite">{rangeLabel(id, value)}</AppText>
+      </View>
+      <Button title="−" variant="secondary" accessibilityLabel={label + " verringern"} onPress={() => patch({ [key]: stepValue(id, value, -1) })} style={styles.stepBtn} />
+      <Button title="+" variant="secondary" accessibilityLabel={label + " erhöhen"} onPress={() => patch({ [key]: stepValue(id, value, 1) })} style={styles.stepBtn} />
+    </View>
+  );
+
   return (
     <Screen title="Goodnotes-Tool." description="Getippter Text wird zu Handschrift. Export als .goodnotes-Datei oder PDF, alles direkt auf deinem Gerät." navigationTitle="Goodnotes-Tool">
       {/* Engine: unsichtbar, läuft komplett offline */}
@@ -146,11 +166,32 @@ export default function GoodnotesScreen() {
           {chip("PDF-Seite", settings.mode === "pdf", () => patch({ mode: "pdf" }))}
         </View>
         <AppText variant="label">Schrift</AppText>
-        <View style={styles.row} accessibilityRole="radiogroup">{FONTS.map((f) => chip(f, settings.font === f, () => patch({ font: f })))}</View>
+        <View style={styles.row} accessibilityRole="radiogroup">{FONTS.map((f) => chip(f, settings.font === f, () => patch({ font: f })))}
+          {hand.count ? chip("Meine Handschrift", settings.font === HAND_FONT, () => patch({ font: HAND_FONT, handVary: settings.handVary || 0 })) : null}
+        </View>
+        <AppText variant="caption" tone="muted">{handInfo(hand.count, 85, hand.cloud)}</AppText>
+        <View style={styles.row}>
+          <Button title={hand.count ? "Handschrift bearbeiten" : "Eigene Handschrift zeichnen"} variant="secondary" onPress={() => hand.setPadOpen(true)} disabled={!hand.loaded} />
+        </View>
+        {settings.font === HAND_FONT ? (
+          <View style={styles.row}>
+            {chip(settings.handVary > 0 ? "Natürlich variieren: an" : "Natürlich variieren: aus", settings.handVary > 0, () => patch({ handVary: settings.handVary > 0 ? 0 : HAND_VARY.default }))}
+            {settings.handVary > 0 ? (
+              <View style={styles.row}>
+                <Button title="−" variant="secondary" accessibilityLabel="Variation verringern" style={styles.stepBtn} onPress={() => patch({ handVary: Math.max(HAND_VARY.min, Math.round((settings.handVary - HAND_VARY.step) * 10) / 10) })} />
+                <AppText variant="caption" tone="muted">{handVaryLabel(settings.handVary)}</AppText>
+                <Button title="+" variant="secondary" accessibilityLabel="Variation erhöhen" style={styles.stepBtn} onPress={() => patch({ handVary: Math.min(HAND_VARY.max, Math.round((settings.handVary + HAND_VARY.step) * 10) / 10) })} />
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         <AppText variant="label">Papier</AppText>
         <View style={styles.row} accessibilityRole="radiogroup">{PAPERS.map((p) => chip(p.label, settings.paper === p.id, () => patch({ paper: p.id })))}</View>
         <AppText variant="label">Tintenfarbe</AppText>
         <View style={styles.row} accessibilityRole="radiogroup">{INKS.map((i) => chip(i.label, settings.ink === i.id, () => patch({ ink: i.id })))}</View>
+        {stepper("size", "Schriftgröße", settings.size, "size")}
+        {settings.mode === "ink" ? stepper("weight", "Strichstärke", settings.weight, "weight") : null}
+        {stepper("jitter", "Unregelmäßigkeit", settings.jitter, "jitter")}
         <AppText variant="label">Eigene Vorlage</AppText>
         <AppText variant="caption" tone="muted">{template ? `Geladen: ${template}` : "Nur nötig, wenn du ein anderes Format brauchst. Wähle eine einseitige .goodnotes-Datei."}</AppText>
         <View style={styles.row}>
@@ -175,6 +216,7 @@ export default function GoodnotesScreen() {
         <Button title="Als Goodnotes exportieren" onPress={() => exportAs("goodnotes")} loading={busy === "goodnotes"} disabled={!ready || !!busy || !pages.length} />
         <Button title="Als PDF exportieren" variant="secondary" onPress={() => exportAs("pdf")} loading={busy === "pdf"} disabled={!ready || !!busy || !pages.length} />
       </Card>
+      <HandPad visible={hand.padOpen} packed={hand.packed} ink={settings.ink} cloud={hand.cloud} onSave={hand.save} onDelete={hand.count ? hand.remove : undefined} onClose={() => hand.setPadOpen(false)} />
     </Screen>
   );
 }
@@ -184,5 +226,7 @@ const styles = StyleSheet.create({
   block: { gap: spacing.md },
   row: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" },
   chip: { minHeight: 44, paddingHorizontal: spacing.lg, justifyContent: "center", borderWidth: 1, borderRadius: radius.pill },
+  stepper: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  stepBtn: { minWidth: 52 },
   page: { width: "100%", aspectRatio: 595.28 / 841.89, borderWidth: 1, borderRadius: radius.field, backgroundColor: "#fff" },
 });

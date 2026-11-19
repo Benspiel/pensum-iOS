@@ -15,16 +15,21 @@ export const PAPERS: ReadonlyArray<{ id: PaperId; label: string }> = [
   { id: "grid", label: "Kariert" }, { id: "blank", label: "Blanko" },
 ];
 
+/** Kennung der eigenen Handschrift in der Engine (HAND_ID in ink-engine.js). */
+export const HAND_FONT = "__hand__" as const;
+
 export interface InkSettings {
   mode: OutputMode;
-  font: FontId;
+  font: FontId | typeof HAND_FONT;
+  /** Verformung der eigenen Handschrift je Zeichen, 0 = aus (Web: handVary). */
+  handVary: number;
   paper: PaperId;
   ink: string;
   weight: number;
   size: number;
   jitter: number;
 }
-export const DEFAULT_SETTINGS: InkSettings = { mode: "ink", font: "Caveat", paper: "lined", ink: "#1d3f9e", weight: 1, size: 1, jitter: 1 };
+export const DEFAULT_SETTINGS: InkSettings = { mode: "ink", font: "Caveat", paper: "lined", ink: "#1d3f9e", handVary: 0, weight: 1, size: 1, jitter: 1 };
 
 /** App → WebView */
 export type HostRequest =
@@ -32,7 +37,8 @@ export type HostRequest =
   | { type: "export-pdf"; id: string }
   | { type: "export-goodnotes"; id: string }
   | { type: "template"; id: string; name: string; base64: string }
-  | { type: "clear-template"; id: string };
+  | { type: "clear-template"; id: string }
+  | { type: "set-hand"; id: string; packed: unknown | null };
 
 /** WebView → App */
 export type HostMessage =
@@ -41,6 +47,7 @@ export type HostMessage =
   | { type: "exported"; id: string; kind: "pdf" | "goodnotes"; files: string[] }
   | { type: "template-ok"; id: string; pageSize: [number, number]; hasInk: boolean }
   | { type: "template-cleared"; id: string }
+  | { type: "hand-set"; id: string; count: number }
   | { type: "error"; id: string; message: string };
 
 const isStr = (v: unknown): v is string => typeof v === "string";
@@ -57,6 +64,7 @@ export function parseHostMessage(raw: unknown): HostMessage | null {
       ? { type: "exported", id: m.id, kind: m.kind, files: m.files } : null;
     case "template-ok": return isStr(m.id) && Array.isArray(m.pageSize) && m.pageSize.length === 2 && m.pageSize.every((n: unknown) => typeof n === "number")
       ? { type: "template-ok", id: m.id, pageSize: [m.pageSize[0], m.pageSize[1]], hasInk: !!m.hasInk } : null;
+    case "hand-set": return isStr(m.id) && typeof m.count === "number" ? { type: "hand-set", id: m.id, count: m.count } : null;
     case "template-cleared": return isStr(m.id) ? { type: "template-cleared", id: m.id } : null;
     case "error": return isStr(m.id) ? { type: "error", id: m.id, message: isStr(m.message) && m.message ? m.message : "Unbekannter Fehler." } : null;
     default: return null;
@@ -112,3 +120,69 @@ export function bytesToBase64(bytes: Uint8Array): string {
   }
   return r;
 }
+
+/** Regler wie im Web (index.html: sizeInput, widthInput, jitterInput). */
+export const RANGES = {
+  size: { min: 0.7, max: 1.6, step: 0.05 },
+  weight: { min: 0.3, max: 3, step: 0.05 },
+  jitter: { min: 0, max: 2, step: 0.1 },
+} as const;
+export type RangeId = keyof typeof RANGES;
+
+/** Einen Schritt hoch oder runter, auf die Schrittweite gerundet und begrenzt (kein 0.30000000000000004). */
+export function stepValue(id: RangeId, value: number, dir: 1 | -1): number {
+  const { min, max, step } = RANGES[id];
+  const next = Math.round((value + dir * step) / step) * step;
+  return Math.min(max, Math.max(min, Math.round(next * 1000) / 1000));
+}
+
+/** Anzeigetexte wie im Web. */
+export function rangeLabel(id: RangeId, value: number): string {
+  if (id === "size") return `${value.toFixed(1)}×`;
+  if (id === "weight") return Math.abs(value - 1) < 0.001 ? "wie die Schrift" : `${value.toFixed(2)}×`;
+  return value < 0.4 ? "keine" : value < 0.9 ? "wenig" : value < 1.3 ? "mittel" : "stark";
+}
+
+/* ---------- Zeichenfeld für die eigene Handschrift (eigene WebView) ---------- */
+
+/** App → Pad */
+export type PadRequest =
+  | { type: "init"; packed: unknown | null; ink: string }
+  | { type: "goto"; idx: number }
+  | { type: "prev" } | { type: "next" } | { type: "undo" } | { type: "clear" }
+  | { type: "pack"; id: string };
+
+export interface PadState { idx: number; char: string; total: number; done: boolean[]; doneCount: number; current: boolean; }
+
+/** Pad → App */
+export type PadMessage =
+  | { type: "pad-ready" }
+  | ({ type: "pad-state" } & PadState)
+  | { type: "packed"; id: string; packed: { v: number; glyphs: Record<string, unknown> } }
+  | { type: "pad-error"; id: string; message: string };
+
+export function parsePadMessage(raw: unknown): PadMessage | null {
+  let m: any;
+  try { m = typeof raw === "string" ? JSON.parse(raw) : null; } catch (_) { return null; }
+  if (!m || typeof m !== "object") return null;
+  switch (m.type) {
+    case "pad-ready": return { type: "pad-ready" };
+    case "pad-state":
+      return typeof m.idx === "number" && isStr(m.char) && typeof m.total === "number" && Array.isArray(m.done) && m.done.every((d: unknown) => typeof d === "boolean") && typeof m.doneCount === "number"
+        ? { type: "pad-state", idx: m.idx, char: m.char, total: m.total, done: m.done, doneCount: m.doneCount, current: !!m.current } : null;
+    case "packed": return isStr(m.id) && m.packed && typeof m.packed === "object" && m.packed.glyphs && typeof m.packed.glyphs === "object"
+      ? { type: "packed", id: m.id, packed: { v: typeof m.packed.v === "number" ? m.packed.v : 1, glyphs: m.packed.glyphs } } : null;
+    case "pad-error": return { type: "pad-error", id: isStr(m.id) ? m.id : "", message: isStr(m.message) && m.message ? m.message : "Unbekannter Fehler." };
+    default: return null;
+  }
+}
+
+/** Text der „Weiter“-Taste im Zeichenfeld (Web: updatePad). */
+export const padNextLabel = (idx: number, total: number, currentDrawn: boolean): string =>
+  idx === total - 1 ? "Fertig" : currentDrawn ? "Weiter" : "Überspringen";
+
+export const padProgressLabel = (s: Pick<PadState, "idx" | "total" | "doneCount">): string => `Zeichen ${s.idx + 1} von ${s.total} · ${s.doneCount} gezeichnet`;
+
+/** Anzeige für die Verformung (Web: handVaryVal). */
+export const handVaryLabel = (v: number): string => (v < 0.7 ? "leicht" : v <= 1.4 ? "mittel" : "stark");
+export const HAND_VARY = { min: 0.2, max: 2, step: 0.1, default: 1 } as const;
