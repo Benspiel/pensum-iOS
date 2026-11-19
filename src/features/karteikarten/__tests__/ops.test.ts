@@ -42,7 +42,7 @@ test("mergeKiCards: Doppelte (Vorderseite, ohne Groß-/Kleinschreibung und Leerr
   const added = mergeKiCards(d, [{ front: " hund ", back: "dog" }, { front: "Katze", back: "cat" }], newId);
   assert.equal(added, 1);
   assert.deepEqual(d.cards.map((c) => c.front), ["Hund", "Katze"]);
-  assert.equal(d.cards[1].level, 1);
+  assert.equal(d.cards[1]!.level, 1);
   assert.equal(kiAddedMessage(1, 1), "1 Karte hinzugefügt.");
   assert.equal(kiAddedMessage(2, 3), "2 Karten hinzugefügt, Doppelte übersprungen.");
 });
@@ -61,7 +61,7 @@ test("importGuestDecks: neue IDs, Konto bleibt unverändert, Limit 5", () => {
   const ids = r.data.decks.flatMap((d) => [d.id, ...d.cards.map((c) => c.id)]);
   assert.equal(new Set(ids).size, ids.length);
   assert.ok(!ids.includes("l1") && !ids.includes("l1c0"));
-  assert.deepEqual(r.data.decks[2].cards.map((c) => c.front), ["f0", "f1"]);
+  assert.deepEqual(r.data.decks[2]!.cards.map((c) => c.front), ["f0", "f1"]);
 
   const four: KarteikartenData = { decks: [deck("a"), deck("b"), deck("c"), deck("d")] };
   const part = importGuestDecks(four, local, newId);

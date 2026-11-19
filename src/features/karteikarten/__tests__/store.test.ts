@@ -32,15 +32,15 @@ test("Konto-Speicher: anlegen, ändern, löschen, laden", async () => {
 
   // nur geänderte Karte wird geschrieben
   rows.log.length = 0;
-  d.decks[0].cards[0].level = 2;
+  d.decks[0]!.cards[0]!.level = 2;
   await store.save(d);
   await store.flush();
   assert.deepEqual(rows.log, ["update:cards:c1"]);
   assert.equal(rowsOf(rows, "cards").get("c1")?.level, 2);
 
   // Karte löschen, Karte hinzufügen
-  d.decks[0].cards = d.decks[0].cards.filter((c) => c.id !== "c2");
-  d.decks[0].cards.push({ id: "c3", front: "Haus", back: "house", level: 1 });
+  d.decks[0]!.cards = d.decks[0]!.cards.filter((c) => c.id !== "c2");
+  d.decks[0]!.cards.push({ id: "c3", front: "Haus", back: "house", level: 1 });
   await store.save(d);
   await store.flush();
   assert.deepEqual([...rowsOf(rows, "cards").keys()].sort(), ["c1", "c3"]);
@@ -48,8 +48,8 @@ test("Konto-Speicher: anlegen, ändern, löschen, laden", async () => {
   // neu laden (anderes Gerät) liefert denselben Stand
   const other = createCloudStore({ $id: "u1" }, { ...deps, onStatus: undefined }, fast());
   const loaded = await other.load();
-  assert.equal(loaded.decks[0].name, "Englisch");
-  assert.deepEqual(loaded.decks[0].cards.map((c) => c.id).sort(), ["c1", "c3"]);
+  assert.equal(loaded.decks[0]!.name, "Englisch");
+  assert.deepEqual(loaded.decks[0]!.cards.map((c) => c.id).sort(), ["c1", "c3"]);
 
   // Stapel löschen entfernt auch seine Karten
   await store.save({ decks: [] });
@@ -79,7 +79,7 @@ test("Gast: kaputte oder fehlende Daten ergeben leeren Stand; load bereinigt", a
   const dirty = JSON.stringify({ decks: [{ name: "", mode: "x", cards: [{ front: "a", back: "b", level: 99 }, { front: "c", back: "d", level: "zwei" }] }] });
   let n = 0;
   const g = createGuestStore({ kv: memoryKv({ [GUEST_KEY]: dirty }), rows: { newId: () => "gen" + ++n } });
-  const [deck] = (await g.load()).decks;
+  const deck = (await g.load()).decks[0]!;
   assert.equal(deck.name, "Stapel");
   assert.equal(deck.mode, "all");
   assert.equal(deck.id, "gen1");
@@ -90,14 +90,14 @@ test("clean: höchstens 5 Stapel, 2000 Karten, Längen begrenzt, Level gerundet 
   const six = { decks: Array.from({ length: 6 }, (_, i) => ({ id: "d" + i, name: "x".repeat(200), mode: "level", cards: [] })) };
   const c = clean(six);
   assert.equal(c.decks.length, 5);
-  assert.equal(c.decks[0].name.length, 80);
+  assert.equal(c.decks[0]!.name.length, 80);
   const many = clean({ decks: [{ id: "d", name: "n", cards: Array.from({ length: 2100 }, (_, i) => ({ id: "c" + i, front: "f".repeat(1500), back: "b", level: 2.6 })) }] });
-  assert.equal(many.decks[0].cards.length, 2000);
-  assert.equal(many.decks[0].cards[0].front.length, 1000);
-  assert.equal(many.decks[0].cards[0].level, 3);
+  assert.equal(many.decks[0]!.cards.length, 2000);
+  assert.equal(many.decks[0]!.cards[0]!.front.length, 1000);
+  assert.equal(many.decks[0]!.cards[0]!.level, 3);
   assert.deepEqual(clean(undefined), { decks: [] });
   assert.deepEqual(clean({ decks: "nein" }), { decks: [] });
-  assert.equal(clean({ decks: [{ id: "i".repeat(50), name: "n", cards: [] }] }).decks[0].id.length, 36);
+  assert.equal(clean({ decks: [{ id: "i".repeat(50), name: "n", cards: [] }] }).decks[0]!.id.length, 36);
 });
 
 test("Gast: Schreibzugriffe laufen nacheinander, der letzte gewinnt; Momentaufnahme beim Aufruf", async () => {
@@ -112,13 +112,13 @@ test("Gast: Schreibzugriffe laufen nacheinander, der letzte gewinnt; Momentaufna
   const guest = createGuestStore({ kv });
   const d = data();
   const p1 = guest.save(d);
-  d.decks[0].name = "Zweiter Stand";
+  d.decks[0]!.name = "Zweiter Stand";
   const p2 = guest.save(d);
-  d.decks[0].name = "Nach dem Speichern geändert";
+  d.decks[0]!.name = "Nach dem Speichern geändert";
   assert.deepEqual(await Promise.all([p1, p2]), [true, true]);
-  assert.equal(JSON.parse(written[0]).decks[0].name, "Englisch", "erster Aufruf hat seinen Stand mitgenommen");
-  assert.equal(JSON.parse(written[1]).decks[0].name, "Zweiter Stand");
-  assert.equal((await guest.load()).decks[0].name, "Zweiter Stand");
+  assert.equal(JSON.parse(written[0]!).decks[0]!.name, "Englisch", "erster Aufruf hat seinen Stand mitgenommen");
+  assert.equal(JSON.parse(written[1]!).decks[0]!.name, "Zweiter Stand");
+  assert.equal((await guest.load()).decks[0]!.name, "Zweiter Stand");
 });
 
 test("Gast: save liefert false bei verweigertem Schreiben, danach geht es weiter; flush wartet; clear löscht", async () => {
@@ -165,8 +165,8 @@ test("Konto: Stapel zuerst, dann Karten; Rechte nur für den Besitzer; Löschen:
   assert.equal(rowsOf(rows, "cards").get("c2")?.deckId, "d1");
 
   rows.log.length = 0;
-  d.decks[0].name = "Englisch 2";
-  d.decks[0].mode = "all";
+  d.decks[0]!.name = "Englisch 2";
+  d.decks[0]!.mode = "all";
   await store.save(d);
   await store.flush();
   assert.deepEqual(rows.log, ["update:decks:d1"], "Stapel umbenennen ändert nur die Stapel-Zeile");
@@ -190,8 +190,8 @@ test("Konto: ungeänderter Stand schreibt nichts; Karte in anderen Stapel versch
   await store.save(d);
   await store.flush();
   assert.deepEqual(rows.log, []);
-  const [moved] = d.decks[0].cards.splice(1, 1);
-  d.decks[1].cards.push(moved);
+  const [moved] = d.decks[0]!.cards.splice(1, 1);
+  d.decks[1]!.cards.push(moved!);
   await store.save(d);
   await store.flush();
   assert.deepEqual(rows.log, ["update:cards:c2"]);
@@ -247,7 +247,7 @@ test("Teilfehler: eine Karte scheitert, die andere ist gespeichert; erneutes Spe
   const d: KarteikartenData = { decks: [{ id: "d1", name: "Englisch", mode: "level", cards: [] }] };
   await store.save(d);
   await store.flush();
-  d.decks[0].cards.push({ id: "c1", front: "Hund", back: "dog", level: 1 }, { id: "c2", front: "Katze", back: "cat", level: 1 });
+  d.decks[0]!.cards.push({ id: "c1", front: "Hund", back: "dog", level: 1 }, { id: "c2", front: "Katze", back: "cat", level: 1 });
   rows.failNext("createRow", { code: 400 }); // kein Serverfehler, wird nicht wiederholt
   await store.save(d);
   await store.flush();
@@ -270,7 +270,7 @@ test("Serverfehler 500 wird wiederholt und gelingt; dauerhafter Fehler meldet er
   await store.save(d);
   await store.flush();
 
-  d.decks[0].cards[0].level = 3;
+  d.decks[0]!.cards[0]!.level = 3;
   rows.failNext("updateRow", { code: 500 }); // einmal 500 → der Limiter wiederholt
   await store.save(d);
   await store.flush();
@@ -278,7 +278,7 @@ test("Serverfehler 500 wird wiederholt und gelingt; dauerhafter Fehler meldet er
   assert.equal(rowsOf(rows, "cards").get("c1")?.level, 3);
   assert.equal(rows.log.filter((l) => l === "update:cards:c1").length, 1);
 
-  d.decks[0].cards[0].level = 4;
+  d.decks[0]!.cards[0]!.level = 4;
   rows.failNext("updateRow", { code: 500 }, 3); // alle drei Versuche scheitern
   await store.save(d);
   await store.flush();
@@ -300,7 +300,7 @@ test("Anlegen: 409 (Zeile gibt es schon) und Löschen: 404 (ist schon weg) gelte
   await store.flush();
   assert.equal(statuses.at(-1), "saved");
   rowsOf(rows, "cards").delete("c2"); // anderswo gelöscht
-  await store.save({ decks: [{ ...d.decks[0], cards: [d.decks[0].cards[0]] }] });
+  await store.save({ decks: [{ ...d.decks[0]!, cards: [d.decks[0]!.cards[0]!] }] });
   await store.flush();
   assert.equal(statuses.at(-1), "saved");
 });
@@ -312,7 +312,7 @@ test("Sammelpause: mehrere save-Aufrufe ergeben einen Schreibvorgang; Status sav
   await store.load();
   const d = data();
   await store.save(d);
-  d.decks[0].cards[0].front = "Hunde";
+  d.decks[0]!.cards[0]!.front = "Hunde";
   await store.save(d);
   assert.equal(rows.log.length, 0, "noch nichts geschrieben");
   await wait(80);
@@ -326,5 +326,5 @@ test("load speichert Ausstehendes zuerst, statt es zu verwerfen", async () => {
   await store.load();
   await store.save(data());
   const loaded = await store.load();
-  assert.equal(loaded.decks[0].cards.length, 2);
+  assert.equal(loaded.decks[0]!.cards.length, 2);
 });

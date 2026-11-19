@@ -26,16 +26,16 @@ test("Level-Modus: richtig steigt, falsch fällt und kommt nochmal", () => {
   const d = mk("level", [2, 2]);
   let q = ["c0", "c1"];
   ({ queue: q } = answerCard(d, q, true));
-  assert.equal(d.cards[0].level, 3);
+  assert.equal(d.cards[0]!.level, 3);
   assert.deepEqual(q, ["c1"]);
   ({ queue: q } = answerCard(d, q, false));
-  assert.equal(d.cards[1].level, 1);
+  assert.equal(d.cards[1]!.level, 1);
   assert.deepEqual(q, ["c1"]);
   ({ queue: q } = answerCard(d, q, false));
-  assert.equal(d.cards[1].level, 1, "Level 1 bleibt Level 1");
+  assert.equal(d.cards[1]!.level, 1, "Level 1 bleibt Level 1");
   ({ queue: q } = answerCard(d, q, true));
   assert.deepEqual(q, []);
-  assert.equal(d.cards[1].level, 2);
+  assert.equal(d.cards[1]!.level, 2);
 });
 
 test("Alle-Modus: jede Karte einmal, keine Level", () => {
@@ -43,7 +43,7 @@ test("Alle-Modus: jede Karte einmal, keine Level", () => {
   assert.equal(buildQueue(d).length, 2);
   const { queue } = answerCard(d, ["c0", "c1"], false);
   assert.deepEqual(queue, ["c1"]);
-  assert.equal(d.cards[0].level, 1);
+  assert.equal(d.cards[0]!.level, 1);
 });
 
 test("resetLevels", () => {
@@ -84,7 +84,7 @@ test("buildQueue im Alle-Modus nimmt auch Level 5 mit", () => {
 test("answerCard: Level 5 bleibt bei richtig 5; leere oder unbekannte Karte", () => {
   const d = mk("level", [5]);
   answerCard(d, ["c0"], true);
-  assert.equal(d.cards[0].level, 5);
+  assert.equal(d.cards[0]!.level, 5);
   const r = answerCard(d, ["fremd", "c0"], true);
   assert.equal(r.card, null);
   assert.deepEqual(r.queue, ["c0"]);

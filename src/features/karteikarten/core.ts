@@ -52,7 +52,7 @@ export function shuffle<T>(list: readonly T[], rng: Rng = Math.random): T[] {
   const a = [...list];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+    [a[i], a[j]] = [a[j] as T, a[i] as T]; // i und j liegen im Bereich
   }
   return a;
 }
@@ -82,7 +82,7 @@ const levelOf = (c: Pick<Card, "level">): number => c.level || 1;
 /** Anzahl Karten pro Level (Index 0 = Level 1). */
 export function levelCounts(deck: DeckLike): number[] {
   const counts: number[] = Array(LEVELS).fill(0);
-  for (const c of deck.cards) counts[clamp(levelOf(c), 1, LEVELS) - 1]++;
+  for (const c of deck.cards) counts[clamp(levelOf(c), 1, LEVELS) - 1]! += 1; // Index liegt immer in 0..4
   return counts;
 }
 
@@ -105,7 +105,7 @@ export function buildQueue(deck: DeckLike, rng: Rng = Math.random): string[] {
  * Alle-Modus: jede Karte genau einmal.
  */
 export function answerCard(deck: DeckLike, queue: readonly string[], correct: boolean): { queue: string[]; card: Card | null } {
-  const id = queue[0];
+  const id = queue[0] as string; // bei leerer Warteschlange undefined, dann findet find keine Karte (wie im Web)
   const card = deck.cards.find((c) => c.id === id);
   const rest = queue.slice(1);
   if (!card) return { queue: rest, card: null };
