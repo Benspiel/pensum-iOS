@@ -31,3 +31,5 @@ Für TestFlight den autorisierten Production-Build mit `npx eas-cli@27.10.0 subm
 ## Geräteprotokoll
 
 Für jede Runde Commit, Build-ID, Profil, iOS-Version, Gerät, Installation und tatsächlichen Test getrennt festhalten. Auf einem iPhone Starterlebnis, dynamische Schrift, VoiceOver, Tastatur, Kamera-Berechtigung, Dateiauswahl, Teilen, App-Neustart, Offline-Fälle und Mail-Links prüfen. Für Web↔iOS dieselben synthetischen Fächer, Planertermine und Kartenstapel aus zwei getrennten Konten prüfen. Gastimport zweimal wiederholen und einen Teilfehler simulieren. Ausstehend sind ein installierter Build, ein iPhone- oder Simulatorlauf, Testkonten, Screenshots und die finale Review-Konfiguration.
+
+Der Entwurf für Review-Hinweise und die iOS-Datenschutzerklärung steht unter [Notizen für App Review](ios-review-notizen.md).
