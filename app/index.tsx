@@ -21,8 +21,7 @@ export default function HomeScreen() {
   const toolsTop = useRef(0);
   const grid = width >= BREAKPOINT_GRID && fontScale <= 1.25;
   const cardWidth = (Math.min(width, CONTENT_MAX) - 2 * gutter(width) - CARD_GAP) / 2;
-  // Die Spiele gibt es in der App nicht (Entscheidung des Auftraggebers); der Katalog führt den Eintrag noch.
-  const visibleTools = tools.filter((tool) => tool.id !== 'spiele')
+  const visibleTools = tools
     .map((tool) => ({ tool, availability: getToolAvailability(tool, access) }))
     .filter(({ availability }) => availability !== 'hidden');
   const signedIn = state.status === 'account';
