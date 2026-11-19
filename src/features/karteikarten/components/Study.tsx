@@ -1,8 +1,9 @@
 /* Karteikarten – Ladeschritt, Lernrunde (Üben/Test) und Ergebnis.
  * Web-Quelle: karteikarten.js renderLoading, renderStudy, studyControls, renderResult (Web-Commit 770dbe4). Texte wörtlich.
- * Ohne Wegfliegen-Animation und Haptik (Auftrag Phase 2); „reduzierte Bewegung“ verkürzt nur den Ladeschritt (hooks.ts). */
-import { useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+ * Karte fliegt nach dem Bewerten weg (richtig nach rechts, falsch nach links), wie .out-ok/.out-bad im Web; bei „reduzierte Bewegung“
+ * entfällt der Effekt und der Ladeschritt ist kürzer (hooks.ts). */
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, Easing, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { isLevelMode } from "../core";
 import type { Deck } from "../core";
 import { currentCard, loadingSubtitle, loadingTitle, progressPercent, resultTexts, roundBadge } from "../session-model";
@@ -29,10 +30,41 @@ interface StudyProps {
   onOverride: () => void;
   onGrade: (ok: boolean) => void;
   onNext: () => void;
+  reduceMotion?: boolean;
 }
 
-export function StudyView({ deck, round, onQuit, onFlip, onCheck, onOverride, onGrade, onNext }: StudyProps) {
+/** Lässt die Karte wegfliegen, sobald `leaving` gesetzt ist, und meldet danach `onGone`. Neue Karte = neuer Schlüssel = frischer Zustand. */
+function FlyAway({ leaving, reduceMotion, onGone, children }: { leaving: boolean | null; reduceMotion: boolean; onGone: () => void; children: ReactNode }) {
+  const progress = useRef(new Animated.Value(0)).current;
+  const { width } = useWindowDimensions();
+  const gone = useRef(onGone);
+  gone.current = onGone;
+  useEffect(() => {
+    if (leaving === null) return undefined;
+    if (reduceMotion) { gone.current(); return undefined; }
+    const anim = Animated.timing(progress, { toValue: 1, duration: 280, easing: Easing.in(Easing.quad), useNativeDriver: true });
+    anim.start(({ finished }) => { if (finished) gone.current(); });
+    return () => anim.stop();
+  }, [leaving, reduceMotion, progress]);
+  const dir = leaving === false ? -1 : 1;
+  return (
+    <Animated.View
+      style={{
+        opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+        transform: [
+          { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, dir * width] }) },
+          { rotate: progress.interpolate({ inputRange: [0, 1], outputRange: ["0deg", `${dir * 14}deg`] }) },
+        ],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+export function StudyView({ deck, round, onQuit, onFlip, onCheck, onOverride, onGrade, onNext, reduceMotion = false }: StudyProps) {
   const { colors } = usePensumTheme();
+  const [leaving, setLeaving] = useState<boolean | null>(null); // Bewertung der wegfliegenden Karte
   const card = currentCard(deck, round);
   if (!card) return null;
   const pct = progressPercent(round);
@@ -40,6 +72,16 @@ export function StudyView({ deck, round, onQuit, onFlip, onCheck, onOverride, on
   const test = round.type === "test";
   const showBack = !test && round.flipped;
   const faceColor = fb ? (fb.ok ? colors.accentSurface : colors.dangerSurface) : colors.surface;
+  const busy = leaving !== null;
+  const answered = round.right + round.wrong;
+  /** Bewerten mit Wegfliegen: erst fliegt die Karte, dann zählt die Bewertung (im Test: „Weiter“). */
+  const leave = (ok: boolean) => { if (!busy) setLeaving(ok); };
+  const onGone = () => {
+    const ok = leaving;
+    setLeaving(null);
+    if (ok === null) return;
+    if (test) onNext(); else onGrade(ok);
+  };
 
   return (
     <View style={styles.page}>
@@ -58,8 +100,9 @@ export function StudyView({ deck, round, onQuit, onFlip, onCheck, onOverride, on
         </View>
       </View>
 
+      <FlyAway key={`${card.id}-${answered}`} leaving={leaving} reduceMotion={reduceMotion} onGone={onGone}>
       <Pressable
-        disabled={test || round.flipped}
+        disabled={test || round.flipped || busy}
         onPress={onFlip}
         accessibilityRole={test ? undefined : "button"}
         accessibilityLabel={test ? `Vorderseite: ${card.front}` : showBack ? `Rückseite: ${card.back}` : `Vorderseite: ${card.front}. Karte umdrehen`}
@@ -70,21 +113,22 @@ export function StudyView({ deck, round, onQuit, onFlip, onCheck, onOverride, on
           {!test && !round.flipped ? <AppText variant="caption" tone="muted">Tippen zum Umdrehen</AppText> : null}
         </Card>
       </Pressable>
+      </FlyAway>
 
       {test ? (
         fb ? (
           <View style={styles.page} accessibilityLiveRegion="polite">
             {fb.ok ? null : <AppText tone="danger" variant="label">{`Richtig wäre: ${card.back}`}</AppText>}
             <View style={styles.actions}>
-              {fb.ok ? null : <Button title="Trotzdem richtig" variant="secondary" onPress={onOverride} />}
-              <Button title="Weiter" onPress={onNext} />
+              {fb.ok ? null : <Button title="Trotzdem richtig" variant="secondary" disabled={busy} onPress={onOverride} />}
+              <Button title="Weiter" disabled={busy} onPress={() => leave(fb.ok)} />
             </View>
           </View>
         ) : <AnswerForm key={card.id + round.queue.length} onCheck={onCheck} />
       ) : round.flipped ? (
         <View style={styles.actions}>
-          <Button title="Nicht gewusst" variant="secondary" onPress={() => onGrade(false)} />
-          <Button title="Gewusst" onPress={() => onGrade(true)} />
+          <Button title="Nicht gewusst" variant="secondary" disabled={busy} onPress={() => leave(false)} />
+          <Button title="Gewusst" disabled={busy} onPress={() => leave(true)} />
         </View>
       ) : <Button title="Umdrehen" onPress={onFlip} />}
     </View>

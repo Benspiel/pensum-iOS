@@ -12,10 +12,12 @@ import { checkNewSubjectName, gradeValue, missingSuggestions, planSeed, planSetG
 import type { GradeRec, View } from "./model";
 import { defaultView } from "./model";
 import { isDeclined, isSeeded, loadView, markDeclined, markSeeded, saveView, seedKey } from "./prefs";
-import { createCloudStore, createGuestStore, importGuestData } from "./store";
+import { haptic } from "./haptics";
+import { importGuestSafe } from "./import";
+import { createCloudStore, createGuestStore } from "./store";
 import type { CloudStore, GuestStore, NotenData } from "./store";
 import {
-  cleanSubjectName, importDoneText, importPending, importPromptText, interpretGradeInput, markUnsaved, planRemoveSubject,
+  cleanSubjectName, importPending, importResultText, importPromptText, interpretGradeInput, markUnsaved, planRemoveSubject,
   prefsFromView, removeSubjectPrompt, shouldSeedDefaults, summarize, viewFromPrefs,
 } from "./ui-model";
 import { useToast } from "./components/Toast";
@@ -43,6 +45,7 @@ interface Store {
   updateGrade(id: string, changes: Partial<Omit<GradeRec, "id" | "saved">>): Promise<unknown>;
   removeGrade(id: string): Promise<unknown>;
   flush(): Promise<void>;
+  flushOrThrow(): Promise<void>;
   isIdle?: () => boolean;
 }
 
@@ -53,7 +56,7 @@ const toData = (d: NotenData): Data => ({ subjects: d.subjects, grades: d.grades
 const stripSaved = ({ saved: _saved, ...g }: GradeRec) => g;
 
 export function useNotenrechner() {
-  const { state, updatePrefs, refresh } = useSession();
+  const { state, updatePrefs, refresh, registerBeforeLogout } = useSession();
   const userId = state.status === "account" ? state.user.id : null;
   const accountName = state.status === "account" ? (state.user.name || state.user.email || "Konto") : null;
   const prefs = state.status === "account" ? state.user.prefs : null;
@@ -111,17 +114,23 @@ export function useNotenrechner() {
 
   const runImport = useCallback(async (local: NotenData, cloud: CloudStore, guest: GuestStore, token: number) => {
     try {
-      const n = await importGuestData(cloud, local);
+      // Gastdaten werden erst gelöscht, wenn alles im Konto bestätigt ist (flushOrThrow in importGuestSafe)
+      const n = await importGuestSafe(cloud, local);
       await guest.clear();
       const fresh = await cloud.load();
       if (token !== tokenRef.current) return;
       update(() => toData(fresh));
       setVersion((v) => v + 1);
       setGuestLocal({ subjects: 0, grades: 0 });
-      showRef.current(importDoneText(n));
+      showRef.current(importResultText(n));
     } catch (e) {
       console.error(e);
-      if (token === tokenRef.current) showRef.current("Die Übernahme ist nicht vollständig durchgelaufen. Prüfe deine Fächer und versuch es noch einmal.", true);
+      if (token !== tokenRef.current) return;
+      showRef.current("Die Übernahme ist nicht vollständig durchgelaufen. Deine lokalen Daten bleiben erhalten. Versuch es noch einmal.", true);
+      try { // Anzeige auf den tatsächlichen Stand im Konto bringen
+        const fresh = await cloud.load();
+        if (token === tokenRef.current) { update(() => toData(fresh)); setVersion((v) => v + 1); }
+      } catch (_) { /* offline */ }
     }
   }, [update]);
 
@@ -237,6 +246,7 @@ export function useNotenrechner() {
     const check = checkNewSubjectName(input, dataRef.current.subjects, viewRef.current);
     if (!check.ok) return check.error;
     addSubjectNamed(check.name);
+    haptic("light");
     return null;
   }, [loading, addSubjectNamed]);
 
@@ -244,6 +254,7 @@ export function useNotenrechner() {
     if (loading) return;
     if (visibleSubjects(dataRef.current.subjects, viewRef.current).some((s) => s.name.toLowerCase() === name.toLowerCase())) return;
     addSubjectNamed(name);
+    haptic("light");
   }, [loading, addSubjectNamed]);
 
   const renameSubject = useCallback((id: string, text: string) => {
@@ -267,6 +278,7 @@ export function useNotenrechner() {
     update(() => ({ subjects: plan.subjects, grades: plan.grades }));
     setErrors((e) => { const { [id]: _gone, ...rest } = e; return rest; });
     store.removeSubject(id, plan.savedGradeIds).catch(noop);
+    haptic("medium");
   }, [update]);
 
   const seedDefaults = useCallback(() => {
@@ -323,6 +335,9 @@ export function useNotenrechner() {
     });
     return () => sub.remove();
   }, [update]);
+
+  // Vor dem Abmelden alles Ausstehende sicher ins Konto schreiben; scheitert das, bricht A das Abmelden ab
+  useEffect(() => registerBeforeLogout(async () => { await storeRef.current?.flushOrThrow(); }), [registerBeforeLogout]);
 
   const setEditing = useCallback((editing: boolean) => { editingRef.current = editing; }, []);
 

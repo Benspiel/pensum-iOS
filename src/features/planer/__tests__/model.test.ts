@@ -6,7 +6,7 @@ import {
   parseDateInput, formatDateInput, validateForm, validateQuick, emptyForm, formFromItem, newItem, subjectSuggestions,
   toggleDone, removeItem, clearDone, updateItem, headerStats, tabTitles, saveNote, taskRowModel, taskEmpty, examCardModel,
   dialogTitle, dialogLabels, newButtonLabel, openNewDialog, openEditDialog, importPrompt, importDoneMessage, dayChanged, msUntilNextDay,
-  deckOptions, groupHeading, isFull, TEXT,
+  deckOptions, groupHeading, isFull, TEXT, pickerDate, textFromPickerDate,
 } from "../model";
 import { isDeclined, markDeclined, DECLINED_KEY } from "../prefs";
 import { MAX_ITEMS, type PlanItem } from "../core";
@@ -245,4 +245,17 @@ test("dayChanged und msUntilNextDay", () => {
   assert.equal(msUntilNextDay(new Date(2026, 10, 19, 23, 59, 0)), 60000);
   assert.equal(msUntilNextDay(new Date(2026, 10, 19, 0, 0, 0)), 24 * 3600 * 1000);
   assert.equal(msUntilNextDay(new Date(2026, 10, 19, 23, 59, 59, 999)), 1000); // Untergrenze
+});
+
+/* ---------- Datumswähler ---------- */
+
+test("pickerDate/textFromPickerDate: Wert des Felds, sonst heute; Rückweg nach lokalem Kalendertag", () => {
+  const d = pickerDate("24.12.2026", TODAY);
+  assert.deepEqual([d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()], [2026, 11, 24, 12]);
+  const t = pickerDate("", TODAY);
+  assert.deepEqual([t.getFullYear(), t.getMonth(), t.getDate()], [2026, 10, 19]);
+  assert.equal(pickerDate("kaputt", TODAY).getDate(), 19);
+  assert.equal(textFromPickerDate(new Date(2026, 2, 5, 0, 30)), "05.03.2026");
+  assert.equal(textFromPickerDate(new Date(2026, 2, 5, 23, 59)), "05.03.2026");
+  assert.equal(textFromPickerDate(pickerDate("29.02.2028", TODAY)), "29.02.2028");
 });

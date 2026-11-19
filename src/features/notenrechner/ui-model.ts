@@ -2,7 +2,7 @@
  * Web-Quelle: tools/notenrechner/notenrechner.js (loadView/saveView für Konten, updateComputed, Fach löschen, Umrechner,
  * ensureDefaults, offerImport; Pensum, Web-Commit 770dbe4). Kein React, kein Speicherzugriff. */
 import {
-  formatInput, formatNumber, formatOther, noteToPoints, overallAverage, parseGrade, pointsToNote, type Subject, type System,
+  formatInput, formatNumber, formatOther, noteToPoints, overallAverage, parseGrade, pointsToNote, type Grade, type Subject, type System,
 } from "./core";
 import { HALF_LABEL, sanitizeView, subjectValues, type GradeRec, type View } from "./model";
 
@@ -105,4 +105,70 @@ export function convertInput(text: string, from: System): { invalid: boolean; ot
   const r = parseGrade(text, from);
   if (!r.ok) return { invalid: !r.empty, other: "" };
   return { invalid: false, other: formatInput(from === "note" ? noteToPoints(r.value) : pointsToNote(r.value)) };
+}
+
+/* ---------- Gast-Daten ins Konto übernehmen (wiederholbar ohne Duplikate) ---------- */
+
+export interface GuestImportPlan {
+  /** neu anzulegende Fächer (neue IDs) */
+  subjects: Subject[];
+  /** neu anzulegende Noten (neue IDs, auf das Ziel-Fach im Konto umgeschrieben) */
+  grades: Grade[];
+  /** Gast-Fächer, die auf ein vorhandenes oder bereits geplantes Fach gleichen Namens im selben Schuljahr fielen */
+  mergedSubjects: number;
+  /** Gast-Noten, die wegfielen, weil das Ziel-Fach im Konto für dieses Halbjahr schon eine Note hat */
+  skippedGrades: number;
+}
+
+const subjectKey = (s: { name: string; schoolYear: string }) => `${s.schoolYear}|${s.name.trim().toLowerCase()}`;
+
+/**
+ * Plan für die Übernahme der Gast-Daten ins Konto, abhängig vom aktuellen Stand im Konto. Dadurch ist eine Wiederholung nach einem
+ * Teilfehler sicher: Was schon im Konto liegt, wird nicht noch einmal angelegt.
+ *  - Fächer gleichen Namens (ohne Groß-/Kleinschreibung, getrimmt) im selben Schuljahr werden mit dem vorhandenen Fach zusammengeführt,
+ *    auch untereinander im Gastspeicher.
+ *  - Je Ziel-Fach und Halbjahr zählt die Note im Konto: Hat das Fach dort schon eine Note, entfallen die Gast-Noten dafür.
+ *  - Noten ohne Fach oder mit ungültigem Wert/Gewicht werden nicht übernommen (wie im Web).
+ */
+export function planGuestImport(
+  guest: { subjects: readonly Subject[]; grades: readonly Grade[] },
+  cloud: { subjects: readonly Subject[]; grades: readonly Grade[] },
+  newId: () => string,
+): GuestImportPlan {
+  const target = new Map<string, string>();
+  for (const s of cloud.subjects) if (!target.has(subjectKey(s))) target.set(subjectKey(s), s.id);
+  const taken = new Set(cloud.grades.filter((g) => Number.isFinite(g.value)).map((g) => `${g.subjectId}|${g.half}`));
+
+  const idMap = new Map<string, string>();
+  const subjects: Subject[] = [];
+  let mergedSubjects = 0;
+  for (const s of guest.subjects) {
+    const key = subjectKey(s);
+    const existing = target.get(key);
+    if (existing) { idMap.set(s.id, existing); mergedSubjects++; continue; }
+    const created: Subject = { id: newId(), name: s.name.trim() || s.name, schoolYear: s.schoolYear };
+    target.set(key, created.id);
+    idMap.set(s.id, created.id);
+    subjects.push(created);
+  }
+
+  const grades: Grade[] = [];
+  let skippedGrades = 0;
+  const cloudKeys = new Set(taken);
+  const owner = new Map<string, string>(); // Ziel-Fach|Halbjahr → Gast-Fach, das die Note geliefert hat
+  for (const g of guest.grades) {
+    const subjectId = idMap.get(g.subjectId);
+    if (!subjectId || !Number.isFinite(g.value) || !Number.isFinite(g.weight)) continue;
+    const key = `${subjectId}|${g.half}`;
+    // Konto hat schon eine Note, oder ein anderes (zusammengeführtes) Gast-Fach hat dieses Halbjahr schon belegt
+    if (cloudKeys.has(key) || (owner.has(key) && owner.get(key) !== g.subjectId)) { skippedGrades++; continue; }
+    owner.set(key, g.subjectId);
+    grades.push({ ...g, id: newId(), subjectId });
+  }
+  return { subjects, grades, mergedSubjects, skippedGrades };
+}
+
+/** Meldung nach der Übernahme; wenn alles schon im Konto war, ein eigener Text. */
+export function importResultText(n: { subjects: number; grades: number }): string {
+  return n.subjects === 0 && n.grades === 0 ? "Die lokalen Daten waren schon in deinem Konto." : importDoneText(n);
 }

@@ -80,6 +80,7 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
           onOverride={actions.override}
           onGrade={actions.grade}
           onNext={actions.next}
+          reduceMotion={k.reduceMotion}
         />
       );
     } else {

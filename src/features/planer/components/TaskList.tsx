@@ -1,11 +1,12 @@
 /* Planer – Tab „Hausaufgaben“: Schnellerfassung, Gruppen, Zeilen, Erledigt-Bereich. Dünne Komponenten, Logik in model.ts/core.ts. */
-import { useState } from "react";
-import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import { useRef, useState } from "react";
+import { Animated, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { AppText, Button, EmptyState } from "../../../ui";
 import { radius, spacing, usePensumTheme } from "../../../theme";
 import { groupTasks, type PlanItem } from "../core";
 import { groupHeading, taskEmpty, taskRowModel } from "../model";
 import { Disclosure } from "./Disclosure";
+import { useReduceMotion } from "./useReduceMotion";
 
 function TextAction({ label, accessibilityLabel, danger, onPress }: { label: string; accessibilityLabel: string; danger?: boolean; onPress: () => void }) {
   return (
@@ -15,18 +16,29 @@ function TextAction({ label, accessibilityLabel, danger, onPress }: { label: str
   );
 }
 
-function TaskRow({ task, today, done, onToggle, onEdit, onDelete }: {
-  task: PlanItem; today: string; done?: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void;
+/** Abhaken: Zeile blendet kurz aus und gleitet weg (Web: .leaving, 280 ms), danach wird umgeschaltet. Bei „Bewegung reduzieren“ sofort. */
+const LEAVE_MS = 280;
+
+function TaskRow({ task, today, done, reduceMotion, onToggle, onEdit, onDelete }: {
+  task: PlanItem; today: string; done?: boolean; reduceMotion: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   const { colors } = usePensumTheme();
   const m = taskRowModel(task, today);
+  const leave = useRef(new Animated.Value(0)).current;
+  const leaving = useRef(false);
+  const press = () => {
+    if (leaving.current) return;
+    if (reduceMotion) { onToggle(); return; }
+    leaving.current = true;
+    Animated.timing(leave, { toValue: 1, duration: LEAVE_MS, useNativeDriver: true }).start(() => { leaving.current = false; onToggle(); });
+  };
   return (
-    <View style={[styles.row, { borderColor: colors.border, backgroundColor: colors.canvas }]}>
+    <Animated.View style={[styles.row, { borderColor: colors.border, backgroundColor: colors.canvas, opacity: leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateX: leave.interpolate({ inputRange: [0, 1], outputRange: [0, 24] }) }] }]}>
       <Pressable
         accessibilityRole="checkbox"
         accessibilityLabel={`${done ? "Wieder öffnen" : "Als erledigt markieren"}: ${task.title}`}
         accessibilityState={{ checked: !!done }}
-        onPress={onToggle}
+        onPress={press}
         style={styles.checkHit}
       >
         <View style={[styles.check, { borderColor: colors.ink, backgroundColor: done ? colors.ink : "transparent" }]}>
@@ -51,7 +63,7 @@ function TaskRow({ task, today, done, onToggle, onEdit, onDelete }: {
           <TextAction label="Löschen" accessibilityLabel={`Löschen: ${task.title}`} danger onPress={onDelete} />
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -93,8 +105,9 @@ export function TaskList({ items, today, onAdd, onToggle, onEdit, onDelete, onCl
   const groups = groupTasks(tasks, today);
   const done = tasks.filter((t) => t.done);
   const empty = taskEmpty(items);
+  const reduceMotion = useReduceMotion();
   const row = (t: PlanItem, isDone = false) => (
-    <TaskRow key={t.id} task={t} today={today} done={isDone} onToggle={() => onToggle(t.id)} onEdit={() => onEdit(t)} onDelete={() => onDelete(t)} />
+    <TaskRow key={t.id} task={t} today={today} done={isDone} reduceMotion={reduceMotion} onToggle={() => onToggle(t.id)} onEdit={() => onEdit(t)} onDelete={() => onDelete(t)} />
   );
   return (
     <View style={styles.list}>

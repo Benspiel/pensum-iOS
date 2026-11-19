@@ -280,3 +280,53 @@ test("Konto: flush ohne ausstehende Änderungen tut nichts", async () => {
   await s.flush();
   assert.deepEqual(rows.log, []);
 });
+
+/* ---------- flushOrThrow (neu: vor dem Abmelden und vor dem Löschen von Gast-Daten) ---------- */
+
+test("flushOrThrow: löst bei Erfolg auf und wartet auf alle Schreibvorgänge", async () => {
+  const { d, rows } = deps();
+  const s = createCloudStore(d, user("u1"));
+  await s.flushOrThrow(); // nichts gespeichert: nichts zu tun
+  const [a, b] = [s.newId(), s.newId()];
+  await s.save({ items: [item(a), item(b)] });
+  await s.flushOrThrow();
+  assert.equal(tbl(rows).size, 2, "alles ist im Konto, bevor das Promise auflöst");
+  await s.save({ items: [item(a, { note: "neu" })] });
+  await s.flushOrThrow();
+  assert.deepEqual([...tbl(rows).keys()], [a]);
+  s.dispose();
+});
+
+test("flushOrThrow: lehnt bei einem Fehler ab; ein späterer Aufruf holt es nach", async () => {
+  const { d, rows } = deps();
+  const s = createCloudStore(d, user("u1"));
+  const a = s.newId();
+  rows.failNext("createRow", { code: 400 });
+  await s.save({ items: [item(a)] });
+  await assert.rejects(s.flushOrThrow(), (e: unknown) => (e as { code?: number }).code === 400);
+  assert.equal(tbl(rows).has(a), false);
+  await s.flushOrThrow(); // neuer Versuch klappt
+  assert.equal(tbl(rows).has(a), true);
+  s.dispose();
+});
+
+test("flushOrThrow: ein Teilfehler bleibt nicht unbemerkt", async () => {
+  const { d, rows } = deps();
+  const s = createCloudStore(d, user("u1"));
+  const [a, b, c] = [s.newId(), s.newId(), s.newId()];
+  rows.failNext("createRow", { code: 400 }); // trifft genau eine von drei Zeilen
+  await s.save({ items: [item(a), item(b), item(c)] });
+  await assert.rejects(s.flushOrThrow());
+  assert.equal(tbl(rows).size, 2, "die übrigen Zeilen sind angekommen, bevor abgelehnt wurde");
+  await s.flushOrThrow();
+  assert.equal(tbl(rows).size, 3);
+  s.dispose();
+});
+
+test("Gast: flushOrThrow ist wie flush", async () => {
+  const { d, kv } = deps();
+  const g = createGuestStore(d);
+  void g.save({ items: [item("g1")] });
+  await g.flushOrThrow();
+  assert.ok(kv.dump()[GUEST_KEY]);
+});
