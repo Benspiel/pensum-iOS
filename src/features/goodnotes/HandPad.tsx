@@ -1,11 +1,13 @@
 /* Zeichenfeld für die eigene Handschrift als Vollbild-Blatt. Das Feld selbst ist eine lokale WebView (engine/pad-bridge.js),
  * Bedienung und Texte sind nativ. Vorlage Web: tools/goodnotes/index.html (Handschrift-Dialog) + goodnotes.js (Web-Commit 770dbe4). */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SymbolView } from "expo-symbols";
 import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
 import { radius, spacing, usePensumTheme } from "../../theme";
 import { AppText, Button } from "../../ui";
+import { FormMessage } from "./parts";
 import { GOODNOTES_PAD_HTML } from "./host-html.generated";
 import { padNextLabel, padProgressLabel, parsePadMessage, type PadRequest, type PadState } from "./protocol";
 import { HostRequestError } from "./request-queue";
@@ -68,16 +70,20 @@ export function HandPad({ visible, packed, ink, cloud, onSave, onDelete, onClose
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={[styles.sheet, { backgroundColor: colors.canvas }]}>
         <View style={styles.head}>
-          <AppText variant="section" accessibilityRole="header" style={{ flex: 1 }}>Deine Handschrift.</AppText>
-          <Button title="Schließen" variant="plain" onPress={onClose} />
+          <AppText variant="h3" accessibilityRole="header" style={styles.title}>Deine Handschrift.</AppText>
+          <View style={styles.close}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Schließen" onPress={onClose} style={({ pressed }) => [styles.closeButton, { backgroundColor: pressed ? colors.surface : "transparent" }]}>
+              <SymbolView name={{ ios: "xmark", android: "close", web: "close" }} tintColor={colors.muted} size={20} />
+            </Pressable>
+          </View>
         </View>
-        <AppText variant="caption" tone="muted">
+        <AppText variant="bodySm" tone="muted">
           Schreib jedes Zeichen einmal in das Feld. {cloud ? "Wird in deinem Konto gespeichert und ist auf allen Geräten verfügbar." : "Wird nur auf diesem Gerät gespeichert. Mit Konto ist sie überall verfügbar."}
         </AppText>
 
         <View style={styles.charRow}>
-          <AppText variant="display" accessibilityLabel={state ? `Zeichen ${state.char}` : undefined}>{state?.char ?? "…"}</AppText>
-          <AppText tone="muted" accessibilityLiveRegion="polite">{state ? padProgressLabel(state) : "Zeichenfeld startet …"}</AppText>
+          <AppText variant="h2" accessibilityLabel={state ? `Zeichen ${state.char}` : undefined} style={styles.char}>{state?.char ?? "…"}</AppText>
+          <AppText variant="caption" tone="muted" accessibilityLiveRegion="polite">{state ? padProgressLabel(state) : "Zeichenfeld startet …"}</AppText>
         </View>
 
         <View style={[styles.pad, { borderColor: colors.border }]} accessibilityLabel="Zeichenfeld" accessible={false}>
@@ -87,42 +93,55 @@ export function HandPad({ visible, packed, ink, cloud, onSave, onDelete, onClose
             onContentProcessDidTerminate={handleTerminated} onRenderProcessGone={handleTerminated} />
         </View>
 
-        {info ? <AppText tone={info.startsWith("Wird") ? "muted" : "danger"} accessibilityLiveRegion="polite">{info}</AppText> : null}
+        {info ? (info.startsWith("Wird") ? <AppText variant="caption" tone="muted" accessibilityLiveRegion="polite">{info}</AppText> : <FormMessage text={info} />) : null}
 
-        <View style={styles.row}>
-          <Button title="Zurück" variant="secondary" onPress={() => send({ type: "prev" })} disabled={!ready || !state || state.idx === 0 || busy} />
-          <Button title="Rückgängig" variant="secondary" onPress={() => send({ type: "undo" })} disabled={!ready || busy} />
-          <Button title="Zeichen leeren" variant="secondary" onPress={() => send({ type: "clear" })} disabled={!ready || busy} />
-        </View>
-        <View style={styles.row}>
-          <Button title={state ? padNextLabel(state.idx, state.total, state.current) : "Weiter"} onPress={next} disabled={!ready || !state || busy} />
-          <Button title="Speichern" variant="secondary" onPress={save} loading={busy} disabled={!ready || !state || state.doneCount === 0} />
-          {onDelete ? <Button title="Handschrift löschen" variant="danger" onPress={onDelete} disabled={busy || !packed} /> : null}
+        <View style={styles.controls}>
+          <Button title="Zurück" variant="secondary" size="sm" style={styles.controlOutline} onPress={() => send({ type: "prev" })} disabled={!ready || !state || state.idx === 0 || busy} />
+          <Button title="Rückgängig" variant="plain" size="sm" style={styles.controlPlain} onPress={() => send({ type: "undo" })} disabled={!ready || busy} />
+          <Button title="Leeren" accessibilityLabel="Zeichen leeren" variant="plain" size="sm" style={styles.controlPlain} onPress={() => send({ type: "clear" })} disabled={!ready || busy} />
+          <Button title={state ? padNextLabel(state.idx, state.total, state.current) : "Weiter"} variant="secondary" size="sm" style={styles.controlOutline} onPress={next} disabled={!ready || !state || busy} />
         </View>
 
         {state ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip} accessibilityLabel="Zeichenliste">
-            {state.done.map((done, i) => (
-              <Pressable key={i} onPress={() => send({ type: "goto", idx: i })} accessibilityRole="button"
-                accessibilityLabel={`Zeichen ${i + 1}${done ? ", gezeichnet" : ""}${i === state.idx ? ", aktuell" : ""}`}
-                style={[styles.dot, { borderColor: i === state.idx ? colors.ink : colors.border, backgroundColor: done ? colors.surface : "transparent" }]}>
-                <AppText variant="caption">{i + 1}</AppText>
-              </Pressable>
-            ))}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip} accessibilityLabel="Zeichenliste" style={styles.stripScroll}>
+            {state.done.map((done, i) => {
+              const current = i === state.idx;
+              return (
+                <Pressable key={i} onPress={() => send({ type: "goto", idx: i })} accessibilityRole="button"
+                  accessibilityLabel={`Zeichen ${i + 1}${done ? ", gezeichnet" : ""}${current ? ", aktuell" : ""}`}
+                  style={[styles.dot, { borderColor: current ? colors.ink : done ? colors.surface : colors.border, backgroundColor: current ? colors.ink : done ? colors.surface : colors.canvas }]}>
+                  <AppText variant="body" style={[styles.dotText, { color: current ? colors.onPrimary : done ? colors.ink : colors.muted }]}>{i + 1}</AppText>
+                </Pressable>
+              );
+            })}
           </ScrollView>
         ) : null}
+
+        <View style={styles.actions}>
+          <Button title="Speichern" onPress={save} loading={busy} disabled={!ready || !state || state.doneCount === 0} />
+          {onDelete ? <Button title="Handschrift löschen" variant="plain" accessibilityHint="Destruktive Aktion" onPress={onDelete} disabled={busy || !packed} /> : null}
+        </View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: { flex: 1, padding: spacing.lg, gap: spacing.md },
-  head: { flexDirection: "row", alignItems: "center" },
-  charRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  pad: { height: 220, borderWidth: 1, borderRadius: radius.field, overflow: "hidden", backgroundColor: "#fff" },
+  sheet: { flex: 1, padding: spacing.xl, gap: spacing.lg },
+  head: { flexDirection: "row", alignItems: "flex-start", gap: spacing.lg },
+  title: { flex: 1 },
+  close: { marginTop: -spacing.sm, marginRight: -spacing.sm },
+  closeButton: { width: 44, height: 44, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
+  charRow: { flexDirection: "row", alignItems: "baseline", gap: spacing.lg },
+  char: { fontSize: 44, lineHeight: 44, minWidth: 40 },
+  pad: { height: 220, borderWidth: 1, borderRadius: radius.field, borderCurve: "continuous", overflow: "hidden", backgroundColor: "#fff" },
   web: { flex: 1, backgroundColor: "transparent" },
-  row: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  strip: { gap: spacing.xs },
-  dot: { minWidth: 36, minHeight: 36, borderWidth: 1, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xs },
+  controls: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: spacing.xs },
+  controlOutline: { paddingHorizontal: spacing.md },
+  controlPlain: { paddingHorizontal: spacing.sm },
+  stripScroll: { flexGrow: 0 },
+  strip: { gap: spacing.xs, paddingBottom: spacing.sm },
+  dot: { width: 44, height: 44, borderWidth: 1, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
+  dotText: { fontWeight: "600" },
+  actions: { gap: spacing.sm },
 });

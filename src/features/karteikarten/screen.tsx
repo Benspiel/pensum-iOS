@@ -1,4 +1,5 @@
 /* Karteikarten – Screen (Route app/tools/karteikarten.tsx liest `deck` aus useLocalSearchParams und reicht es als deckParam durch).
+ * Meldungen wie der Web-Toast: Ink-Fläche, Text in on-primary, Fehler halbfett.
  * Web-Quelle: tools/karteikarten/karteikarten.js (Web-Commit 770dbe4). Zustand: hooks.ts, Logik: session-model.ts. Ohne KI-Block (Folgepaket). */
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -9,7 +10,8 @@ import { CardDialog, DeckDialog, StartDialog } from "./components/Dialogs";
 import { DeckList } from "./components/DeckList";
 import { DeckView } from "./components/DeckView";
 import { LoadingRound, ResultView, StudyView } from "./components/Study";
-import { spacing, usePensumTheme } from "../../theme";
+import { LoadingPanel } from "./components/common";
+import { radius, spacing, usePensumTheme } from "../../theme";
 import { AppText, ErrorState, LoadingState, Screen } from "../../ui";
 import { useSession } from "../../account/session";
 
@@ -34,10 +36,10 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
   useEffect(() => { if (missing) actions.showList(); }, [missing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   let body;
-  if (state.status === "loading") body = <LoadingState title="Deine Karten werden geladen" />;
+  if (state.status === "loading") body = <LoadingPanel title="Deine Karten werden geladen" reduceMotion={k.reduceMotion} />;
   else if (state.status === "error") body = <ErrorState message={state.error.message} />;
   else if (k.loadError) body = <ErrorState title="Laden fehlgeschlagen." message={k.loadError} onRetry={actions.retryLoad} />;
-  else if (view.name === "boot") body = <LoadingState title="Deine Karten werden geladen" />;
+  else if (view.name === "boot") body = <LoadingPanel title="Deine Karten werden geladen" reduceMotion={k.reduceMotion} />;
   else if (view.name === "list") {
     body = (
       <DeckList
@@ -51,7 +53,7 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
       />
     );
   } else if (view.name === "loading") {
-    body = <LoadingRound deck={k.deckById(view.round.deckId)} round={view.round} count={view.count} />;
+    body = <LoadingRound deck={k.deckById(view.round.deckId)} round={view.round} count={view.count} reduceMotion={k.reduceMotion} />;
   } else {
     const deck = viewDeckId ? k.deckById(viewDeckId) : undefined;
     if (!deck) body = <LoadingState />;
@@ -111,9 +113,9 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
           accessibilityRole="alert"
           accessibilityLabel={k.notice.text}
           accessibilityHint="Zum Schließen tippen"
-          style={[styles.notice, { backgroundColor: k.notice.error ? colors.dangerSurface : colors.accentSurface }]}
+          style={[styles.notice, { backgroundColor: colors.ink }]}
         >
-          <AppText tone={k.notice.error ? "danger" : "default"}>{k.notice.text}</AppText>
+          <AppText variant="bodySm" style={{ color: colors.onPrimary, fontWeight: k.notice.error ? "600" : "400" }}>{k.notice.text}</AppText>
         </Pressable>
       ) : null}
       <View style={styles.body}>{body}</View>
@@ -139,5 +141,5 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
 
 const styles = StyleSheet.create({
   body: { gap: spacing.lg },
-  notice: { padding: spacing.md, borderRadius: 16 },
+  notice: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderRadius: radius.field, borderCurve: "continuous" },
 });

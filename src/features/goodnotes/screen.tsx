@@ -1,18 +1,20 @@
 /* Goodnotes-Tool – nativer Screen. Die Tinten-Engine läuft unverändert und offline in einer WebView (engine/, host-html.generated.ts);
- * Eingabe, Auswahl, Speichern und Teilen sind nativ. Vorlage Web: tools/goodnotes/index.html + goodnotes.js (Commit 770dbe4). */
+ * Eingabe, Auswahl, Speichern und Teilen sind nativ. Vorlage Web: tools/goodnotes/index.html + goodnotes.js + goodnotes.css (Commit 770dbe4).
+ * Reihenfolge und Optik wie die Website: Vorschau, Panels „Dein Text.“ und „Stil.“, eigene Vorlage, Export als Stack-Panel-Zeilen. */
 import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Image, Pressable, StyleSheet, View } from "react-native";
+import { Image, Pressable, StyleSheet, Switch, View, useWindowDimensions } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
 import { radius, spacing, usePensumTheme } from "../../theme";
-import { AppText, Button, Card, ErrorState, Field, Screen } from "../../ui";
+import { AppText, Badge, Button, Field, Panel, Screen } from "../../ui";
 import { takeHandoff } from "../shared/handoff";
 import { HandPad } from "./HandPad";
 import { handInfo } from "./hand-store";
 import { GOODNOTES_HOST_HTML } from "./host-html.generated";
+import { ExportList, FormMessage, Grid, InkDot, Notice, OptionTile, PaperSwatch, StepperRow } from "./parts";
 import { useHand } from "./useHand";
 import { deleteQuietly, ENGINE_GIVEUP_MESSAGE } from "./request-queue";
 import { useWebViewChannel } from "./useWebViewChannel";
@@ -27,6 +29,7 @@ type Req = HostRequest extends infer T ? (T extends { id: string } ? Omit<T, "id
 
 export default function GoodnotesScreen() {
   const { colors } = usePensumTheme();
+  const { width } = useWindowDimensions();
   const [epoch, setEpoch] = useState(0);
   const [text, setText] = useState(SAMPLE);
   const [fileName, setFileName] = useState("Lernzettel");
@@ -142,24 +145,11 @@ export default function GoodnotesScreen() {
     finally { for (const f of made) deleteQuietly(f); setBusy(null); }
   }
 
-  const chip = (label: string, on: boolean, onPress: () => void, extra?: object) => (
-    <Pressable key={label} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={label} onPress={onPress}
-      style={[styles.chip, { borderColor: on ? colors.ink : colors.border, backgroundColor: on ? colors.surface : "transparent" }, extra]}>
-      <AppText variant="label">{label}</AppText>
-    </Pressable>
-  );
-
-
-  const stepper = (id: RangeId, label: string, value: number, key: "size" | "weight" | "jitter") => (
-    <View key={id} style={styles.stepper}>
-      <View style={{ flex: 1 }}>
-        <AppText variant="label">{label}</AppText>
-        <AppText variant="caption" tone="muted" accessibilityLiveRegion="polite">{rangeLabel(id, value)}</AppText>
-      </View>
-      <Button title="−" variant="secondary" accessibilityLabel={label + " verringern"} onPress={() => patch({ [key]: stepValue(id, value, -1) })} style={styles.stepBtn} />
-      <Button title="+" variant="secondary" accessibilityLabel={label + " erhöhen"} onPress={() => patch({ [key]: stepValue(id, value, 1) })} style={styles.stepBtn} />
-    </View>
-  );
+  const stepFor = (id: RangeId, key: "size" | "weight" | "jitter", value: number) => (dir: 1 | -1) => patch({ [key]: stepValue(id, value, dir) });
+  const varyBy = (dir: 1 | -1) => patch({ handVary: Math.min(HAND_VARY.max, Math.max(HAND_VARY.min, Math.round((settings.handVary + dir * HAND_VARY.step) * 10) / 10)) });
+  const columnsFonts = width >= 480 ? 3 : 2;
+  const columnsPapers = width >= 480 ? 4 : 2;
+  const exportBlocked = !ready || !!busy || !pages.length;
 
   return (
     <Screen title="Goodnotes-Tool." description="Getippter Text wird zu Handschrift. Export als .goodnotes-Datei oder PDF, alles direkt auf deinem Gerät." navigationTitle="Goodnotes-Tool">
@@ -171,73 +161,127 @@ export default function GoodnotesScreen() {
           onError={() => setError("Die Schreib-Engine konnte nicht gestartet werden.")} />
       </View>
 
-      {error ? <ErrorState message={error} onRetry={() => setError(null)} retryLabel="Schließen" /> : null}
-      {notice ? <AppText tone="accent" accessibilityLiveRegion="polite">{notice}</AppText> : null}
+      {error ? <FormMessage text={error} onDismiss={() => setError(null)} /> : null}
+      {notice ? <Notice text={notice} /> : null}
 
-      <Card style={styles.block}>
-        <AppText variant="section" accessibilityRole="header">Dein Text.</AppText>
-        <Field label="Text" value={text} onChangeText={setText} multiline autoCapitalize="sentences" spellCheck />
-        <AppText variant="caption" tone="muted">Zeilen mit # werden zu Überschriften, Zeilen mit - zu Aufzählungen. Dein Text bleibt auf diesem Gerät.</AppText>
-      </Card>
-
-      <Card style={styles.block}>
-        <AppText variant="section" accessibilityRole="header">Stil.</AppText>
-        <AppText variant="label">Ausgabe</AppText>
-        <View style={styles.row} accessibilityRole="radiogroup">
-          {chip("Echte Tinte", settings.mode === "ink", () => patch({ mode: "ink" }))}
-          {chip("PDF-Seite", settings.mode === "pdf", () => patch({ mode: "pdf" }))}
+      <View style={styles.section}>
+        <View style={styles.previewHead}>
+          <AppText variant="section" accessibilityRole="header">Vorschau.</AppText>
+          <Badge label={ready ? pageCountLabel(pages.length || 1) : "Engine startet …"} />
+          <AppText variant="caption" tone="muted" style={styles.previewMeta}>A4 · entspricht dem Export</AppText>
         </View>
-        <AppText variant="label">Schrift</AppText>
-        <View style={styles.row} accessibilityRole="radiogroup">{FONTS.map((f) => chip(f, settings.font === f, () => patch({ font: f })))}
-          {hand.count ? chip("Meine Handschrift", settings.font === HAND_FONT, () => patch({ font: HAND_FONT, handVary: settings.handVary || 0 })) : null}
-        </View>
-        <AppText variant="caption" tone="muted">{handInfo(hand.count, 85, hand.cloud)}</AppText>
-        <View style={styles.row}>
-          <Button title={hand.count ? "Handschrift bearbeiten" : "Eigene Handschrift zeichnen"} variant="secondary" onPress={() => hand.setPadOpen(true)} disabled={!hand.loaded} />
-        </View>
-        {settings.font === HAND_FONT ? (
-          <View style={styles.row}>
-            {chip(settings.handVary > 0 ? "Natürlich variieren: an" : "Natürlich variieren: aus", settings.handVary > 0, () => patch({ handVary: settings.handVary > 0 ? 0 : HAND_VARY.default }))}
-            {settings.handVary > 0 ? (
-              <View style={styles.row}>
-                <Button title="−" variant="secondary" accessibilityLabel="Variation verringern" style={styles.stepBtn} onPress={() => patch({ handVary: Math.max(HAND_VARY.min, Math.round((settings.handVary - HAND_VARY.step) * 10) / 10) })} />
-                <AppText variant="caption" tone="muted">{handVaryLabel(settings.handVary)}</AppText>
-                <Button title="+" variant="secondary" accessibilityLabel="Variation erhöhen" style={styles.stepBtn} onPress={() => patch({ handVary: Math.min(HAND_VARY.max, Math.round((settings.handVary + HAND_VARY.step) * 10) / 10) })} />
-              </View>
-            ) : null}
+        {pages.length ? (
+          <View style={[styles.stage, { backgroundColor: colors.surface }]}>
+            {pages.map((uri, i) => (
+              <Image key={i} source={{ uri }} resizeMode="contain" accessibilityLabel={`Seite ${i + 1} von ${pages.length}`} style={styles.page} />
+            ))}
           </View>
         ) : null}
-        <AppText variant="label">Papier</AppText>
-        <View style={styles.row} accessibilityRole="radiogroup">{PAPERS.map((p) => chip(p.label, settings.paper === p.id, () => patch({ paper: p.id })))}</View>
-        <AppText variant="label">Tintenfarbe</AppText>
-        <View style={styles.row} accessibilityRole="radiogroup">{INKS.map((i) => chip(i.label, settings.ink === i.id, () => patch({ ink: i.id })))}</View>
-        {stepper("size", "Schriftgröße", settings.size, "size")}
-        {settings.mode === "ink" ? stepper("weight", "Strichstärke", settings.weight, "weight") : null}
-        {stepper("jitter", "Unregelmäßigkeit", settings.jitter, "jitter")}
-        <AppText variant="label">Eigene Vorlage</AppText>
-        <AppText variant="caption" tone="muted">{template ? `Geladen: ${template}` : "Nur nötig, wenn du ein anderes Format brauchst. Wähle eine einseitige .goodnotes-Datei."}</AppText>
-        <View style={styles.row}>
-          <Button title={template ? "Andere Vorlage wählen" : "Vorlage wählen"} variant="secondary" onPress={pickTemplate} disabled={!ready} />
-          {template ? <Button title="Entfernen" variant="plain" onPress={dropTemplate} /> : null}
-        </View>
-      </Card>
+      </View>
 
-      <Card style={styles.block}>
-        <View style={styles.row}>
-          <AppText variant="section" accessibilityRole="header">Vorschau.</AppText>
-          <AppText tone="muted" variant="caption">{ready ? pageCountLabel(pages.length || 1) : "Engine startet …"}</AppText>
-        </View>
-        {pages.map((uri, i) => (
-          <Image key={i} source={{ uri }} resizeMode="contain" accessibilityLabel={`Seite ${i + 1} von ${pages.length}`}
-            style={[styles.page, { borderColor: colors.border }]} />
-        ))}
-      </Card>
+      <Panel style={styles.panel}>
+        <AppText variant="h4" accessibilityRole="header" style={styles.panelTitle}>Dein Text.</AppText>
+        <Field
+          label="Text" value={text} onChangeText={setText} multiline autoCapitalize="sentences" spellCheck style={styles.textarea}
+          hint="Zeilen mit # werden zu Überschriften, Zeilen mit - zu Aufzählungen. Dein Text bleibt auf diesem Gerät."
+        />
+      </Panel>
 
-      <Card style={styles.block}>
+      <Panel style={styles.panel}>
+        <AppText variant="h4" accessibilityRole="header" style={styles.panelTitle}>Stil.</AppText>
+
+        <View style={styles.group}>
+          <AppText variant="fieldLabel">Ausgabe</AppText>
+          <View style={styles.pair} accessibilityRole="radiogroup" accessibilityLabel="Ausgabe">
+            <View style={styles.half}><OptionTile title="Echte Tinte" hint="Radieren, auswählen, umfärben. Wie selbst geschrieben." selected={settings.mode === "ink"} onPress={() => patch({ mode: "ink" })} /></View>
+            <View style={styles.half}><OptionTile title="PDF-Seite" hint="Text ist Teil des Seitenhintergrunds." selected={settings.mode === "pdf"} onPress={() => patch({ mode: "pdf" })} /></View>
+          </View>
+        </View>
+
+        <View style={styles.group}>
+          <AppText variant="fieldLabel">Schrift</AppText>
+          <View accessibilityRole="radiogroup" accessibilityLabel="Schrift" style={styles.group}>
+            <Grid columns={columnsFonts}>
+              {FONTS.map((f) => <OptionTile key={f} center title={f} selected={settings.font === f} onPress={() => patch({ font: f })} />)}
+            </Grid>
+            {hand.count ? (
+              <OptionTile title="Meine Handschrift" hint={handInfo(hand.count, 85, hand.cloud)} selected={settings.font === HAND_FONT} onPress={() => patch({ font: HAND_FONT, handVary: settings.handVary || 0 })} />
+            ) : null}
+          </View>
+          {hand.count ? null : <AppText variant="caption" tone="muted">{handInfo(hand.count, 85, hand.cloud)}</AppText>}
+          <View style={styles.wrap}>
+            <Button title={hand.count ? "Handschrift bearbeiten" : "Eigene Handschrift zeichnen"} variant="soft" size="sm" onPress={() => hand.setPadOpen(true)} disabled={!hand.loaded} />
+          </View>
+          {settings.font === HAND_FONT ? (
+            <View style={styles.group}>
+              <View style={styles.toggle}>
+                <AppText variant="fieldLabel" style={styles.toggleLabel}>Natürlich variieren</AppText>
+                <Switch
+                  value={settings.handVary > 0}
+                  onValueChange={(on) => patch({ handVary: on ? HAND_VARY.default : 0 })}
+                  accessibilityLabel="Natürlich variieren"
+                  trackColor={{ false: colors.border, true: colors.ink }}
+                  thumbColor={colors.canvas}
+                  ios_backgroundColor={colors.border}
+                />
+              </View>
+              {settings.handVary > 0 ? <StepperRow label="Variation" valueLabel={handVaryLabel(settings.handVary)} onStep={varyBy} /> : null}
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.group}>
+          <AppText variant="fieldLabel">Papier</AppText>
+          <View accessibilityRole="radiogroup" accessibilityLabel="Papier">
+            <Grid columns={columnsPapers}>
+              {PAPERS.map((p) => (
+                <OptionTile key={p.id} title={p.label} selected={settings.paper === p.id} onPress={() => patch({ paper: p.id })}>
+                  <PaperSwatch kind={p.id} />
+                </OptionTile>
+              ))}
+            </Grid>
+          </View>
+        </View>
+
+        <View style={styles.group}>
+          <AppText variant="fieldLabel">Tintenfarbe</AppText>
+          <View style={styles.inks} accessibilityRole="radiogroup" accessibilityLabel="Tintenfarbe">
+            {INKS.map((i) => <InkDot key={i.id} color={i.id} label={i.label} selected={settings.ink === i.id} onPress={() => patch({ ink: i.id })} />)}
+          </View>
+        </View>
+
+        <StepperRow label="Schriftgröße" valueLabel={rangeLabel("size", settings.size)} onStep={stepFor("size", "size", settings.size)} />
+        {settings.mode === "ink" ? <StepperRow label="Strichstärke" valueLabel={rangeLabel("weight", settings.weight)} onStep={stepFor("weight", "weight", settings.weight)} /> : null}
+        <StepperRow label="Unregelmäßigkeit" valueLabel={rangeLabel("jitter", settings.jitter)} onStep={stepFor("jitter", "jitter", settings.jitter)} />
+      </Panel>
+
+      <Panel style={styles.template}>
+        <AppText variant="fieldLabel">Eigene Vorlage</AppText>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={template ? "Andere Vorlage wählen" : "Vorlage wählen"}
+          accessibilityState={{ disabled: !ready }}
+          disabled={!ready}
+          onPress={pickTemplate}
+          style={[styles.drop, { backgroundColor: colors.canvas, borderColor: template ? colors.ink : colors.muted, borderStyle: template ? "solid" : "dashed", opacity: ready ? 1 : 0.5 }]}
+        >
+          {template ? <Badge label="Gespeichert" /> : null}
+          <AppText variant="fieldLabel" accessible={false}>{template ? "Andere Vorlage wählen" : "Vorlage wählen"}</AppText>
+          <AppText variant="bodySm" tone="muted" accessible={false}>{template ? `Geladen: ${template}` : "Nur nötig, wenn du ein anderes Format brauchst. Wähle eine einseitige .goodnotes-Datei."}</AppText>
+        </Pressable>
+        {template ? <Button title="Entfernen" accessibilityLabel="Eigene Vorlage entfernen" variant="plain" size="sm" onPress={dropTemplate} style={styles.removeTemplate} /> : null}
+      </Panel>
+
+      <View style={styles.section}>
         <Field label="Dateiname" value={fileName} onChangeText={setFileName} autoCorrect={false} />
-        <Button title="Als Goodnotes exportieren" onPress={() => exportAs("goodnotes")} loading={busy === "goodnotes"} disabled={!ready || !!busy || !pages.length} />
-        <Button title="Als PDF exportieren" variant="secondary" onPress={() => exportAs("pdf")} loading={busy === "pdf"} disabled={!ready || !!busy || !pages.length} />
-      </Card>
+        <ExportList
+          title="Exportieren"
+          rows={[
+            { id: "gn", title: "Als Goodnotes", hint: ".goodnotes-Datei zum Öffnen in Goodnotes", symbol: { ios: "pencil.line", android: "edit", web: "edit" }, accessibilityLabel: "Als Goodnotes exportieren", busy: busy === "goodnotes", disabled: exportBlocked, onPress: () => exportAs("goodnotes") },
+            { id: "pdf", title: "Als PDF", hint: "Zum Drucken und Teilen", symbol: { ios: "doc.text", android: "description", web: "description" }, accessibilityLabel: "Als PDF exportieren", busy: busy === "pdf", disabled: exportBlocked, onPress: () => exportAs("pdf") },
+          ]}
+        />
+      </View>
       <HandPad visible={hand.padOpen} packed={hand.packed} ink={settings.ink} cloud={hand.cloud} onSave={hand.save} onDelete={hand.count ? hand.remove : undefined} onClose={() => hand.setPadOpen(false)} />
     </Screen>
   );
@@ -245,10 +289,22 @@ export default function GoodnotesScreen() {
 
 const styles = StyleSheet.create({
   hidden: { height: 1, width: 1, opacity: 0, position: "absolute" },
-  block: { gap: spacing.md },
-  row: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" },
-  chip: { minHeight: 44, paddingHorizontal: spacing.lg, justifyContent: "center", borderWidth: 1, borderRadius: radius.pill },
-  stepper: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  stepBtn: { minWidth: 52 },
-  page: { width: "100%", aspectRatio: 595.28 / 841.89, borderWidth: 1, borderRadius: radius.field, backgroundColor: "#fff" },
+  section: { gap: spacing.md },
+  previewHead: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: spacing.md, rowGap: spacing.sm },
+  previewMeta: { marginLeft: "auto" },
+  stage: { gap: spacing.lg, padding: spacing.lg, borderRadius: radius.card, borderCurve: "continuous" },
+  page: { width: "100%", aspectRatio: 595.28 / 841.89, borderRadius: radius.field, backgroundColor: "#fff" },
+  panel: { gap: spacing.xl },
+  panelTitle: { marginBottom: -spacing.sm },
+  textarea: { minHeight: 220 },
+  group: { gap: spacing.sm },
+  pair: { flexDirection: "row", gap: spacing.sm },
+  half: { flex: 1 },
+  wrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" },
+  toggle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.lg, minHeight: 48 },
+  toggleLabel: { flexShrink: 1 },
+  inks: { flexDirection: "row", gap: spacing.sm },
+  template: { gap: spacing.md, padding: spacing.lg, borderRadius: radius.field },
+  drop: { gap: spacing.xs, alignItems: "flex-start", padding: spacing.lg, borderWidth: 1, borderRadius: radius.field, borderCurve: "continuous" },
+  removeTemplate: { alignSelf: "flex-start" },
 });

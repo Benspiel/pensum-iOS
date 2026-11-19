@@ -1,7 +1,8 @@
 /* Karteikarten – Dialoge: Stapel anlegen/bearbeiten/löschen, Karte bearbeiten, Lernart wählen.
- * Web-Quelle: karteikarten.js deckDialog, cardDialog, startDialog (Web-Commit 770dbe4). Texte wörtlich. */
+ * Web-Quelle: karteikarten.js deckDialog, cardDialog, startDialog (Web-Commit 770dbe4). Texte wörtlich.
+ * Optik: karteikarten.css (.kk-ai, .kk-start, .kk-danger) und pensum.css (.modal, .field, .select, .check). */
 import { useRef, useState } from "react";
-import { StyleSheet, Switch, View } from "react-native";
+import { Pressable, StyleSheet, Switch, View, useWindowDimensions } from "react-native";
 import { MODES } from "../core";
 import type { Card, Deck, DeckMode, StudyType } from "../core";
 import { confirmAsync } from "../hooks";
@@ -12,9 +13,11 @@ import { COUNTS, DEFAULT_COUNT, TOPIC_MAX, checkKiInput, consentDescription } fr
 import { discardKiFile, pickKiFile } from "../ki/files";
 import type { KiFile, KiFileSource } from "../ki/files";
 import { plural } from "../session-model";
-import { spacing } from "../../../theme";
-import { AppText, Button, Field } from "../../../ui";
-import { Sheet } from "./common";
+import { radius, spacing, usePensumTheme } from "../../../theme";
+import { AppText, Badge, Button, Chip, Field, Panel, Segmented } from "../../../ui";
+import { FormMessage, Sheet } from "./common";
+
+const MODE_IDS = Object.keys(MODES) as DeckMode[];
 
 export function DeckDialog({ deck, kiTester = false, onSubmit, onKi, onDelete, onClose }: {
   deck?: Deck;
@@ -25,6 +28,7 @@ export function DeckDialog({ deck, kiTester = false, onSubmit, onKi, onDelete, o
   onDelete?: () => void;
   onClose: () => void;
 }) {
+  const { colors } = usePensumTheme();
   const creating = !deck;
   const [name, setName] = useState(deck ? deck.name : "");
   const [mode, setMode] = useState<DeckMode>(deck ? deck.mode : "level");
@@ -84,61 +88,74 @@ export function DeckDialog({ deck, kiTester = false, onSubmit, onKi, onDelete, o
     <Sheet title={creating ? "Neuer Stapel." : "Stapel bearbeiten."} onClose={close}>
       <Field label="Name" value={name} onChangeText={setName} maxLength={80} autoFocus autoCorrect={false} placeholder="z. B. Englisch Unit 3" returnKeyType="done" onSubmitEditing={() => void submit()} />
       <View style={styles.group}>
-        <AppText variant="label">Abfrage</AppText>
-        <View style={styles.modes}>
-          {(Object.keys(MODES) as DeckMode[]).map((k) => (
-            <Button key={k} title={MODES[k].label} variant={k === mode ? "primary" : "secondary"} onPress={() => setMode(k)} accessibilityRole="radio" accessibilityState={{ checked: k === mode }} style={styles.mode} />
-          ))}
-        </View>
+        <AppText variant="fieldLabel">Abfrage</AppText>
+        <Segmented
+          label="Abfrage"
+          options={MODE_IDS.map((k) => ({ id: k, label: MODES[k].label }))}
+          value={mode}
+          onChange={setMode}
+        />
         <AppText variant="caption" tone="muted">{MODES[mode].hint}</AppText>
       </View>
       {creating && kiTester ? (
-        <View style={styles.group}>
+        <Panel style={styles.ai}>
           <View style={styles.switchRow}>
-            <AppText variant="label" style={styles.switchLabel}>Mit KI erstellen</AppText>
-            <Switch value={useAi} onValueChange={setUseAi} accessibilityLabel="Mit KI erstellen" />
+            <AppText variant="bodySm" style={styles.switchLabel}>Mit KI erstellen</AppText>
+            <Switch
+              value={useAi}
+              onValueChange={setUseAi}
+              accessibilityLabel="Mit KI erstellen"
+              trackColor={{ false: colors.border, true: colors.ink }}
+              thumbColor={colors.canvas}
+              ios_backgroundColor={colors.border}
+            />
           </View>
           {useAi ? (
-            <View style={styles.group}>
+            <View style={styles.aiBody}>
               <Field label="Dein Thema oder Text" value={topic} onChangeText={setTopic} maxLength={TOPIC_MAX} autoCorrect={false} placeholder="z. B. Französische Revolution" />
-              <AppText variant="label">Oder ein Foto / PDF (z. B. Vokabelseite)</AppText>
-              {file ? <AppText accessibilityLabel={`Ausgewählt: ${file.name}`}>{file.kind === "pdf" ? `PDF: ${file.name}` : "Foto ausgewählt"}</AppText> : null}
-              <View style={styles.modes}>
-                <Button title="Foto wählen" variant="secondary" disabled={picking} onPress={() => void choose("library")} style={styles.mode} />
-                <Button title="Foto aufnehmen" variant="secondary" disabled={picking} onPress={() => void choose("camera")} style={styles.mode} />
-                <Button title="PDF wählen" variant="secondary" disabled={picking} onPress={() => void choose("pdf")} style={styles.mode} />
-                {file ? <Button title="Entfernen" variant="plain" onPress={() => { discardKiFile(file); setFile(null); }} /> : null}
+              <View style={styles.group}>
+                <AppText variant="fieldLabel">Oder ein Foto / PDF (z. B. Vokabelseite)</AppText>
+                {file ? <AppText variant="bodySm" accessibilityLabel={`Ausgewählt: ${file.name}`}>{file.kind === "pdf" ? `PDF: ${file.name}` : "Foto ausgewählt"}</AppText> : null}
+                <View style={styles.wrap}>
+                  <Button title="Foto wählen" variant="soft" size="sm" disabled={picking} onPress={() => void choose("library")} />
+                  <Button title="Foto aufnehmen" variant="soft" size="sm" disabled={picking} onPress={() => void choose("camera")} />
+                  <Button title="PDF wählen" variant="soft" size="sm" disabled={picking} onPress={() => void choose("pdf")} />
+                  {file ? <Button title="Entfernen" variant="plain" size="sm" onPress={() => { discardKiFile(file); setFile(null); }} /> : null}
+                </View>
               </View>
-              <AppText variant="label">Anzahl (höchstens)</AppText>
-              <View style={styles.modes}>
-                {COUNTS.map((n) => (
-                  <Button
-                    key={n}
-                    title={n === DEFAULT_COUNT ? "Alle (bis 60)" : `${n} Karten`}
-                    variant={n === count ? "primary" : "secondary"}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: n === count }}
-                    onPress={() => setCount(n)}
-                    style={styles.mode}
-                  />
-                ))}
+              <View style={styles.group}>
+                <AppText variant="fieldLabel">Anzahl (höchstens)</AppText>
+                <View style={styles.wrap}>
+                  {COUNTS.map((n) => (
+                    <Chip key={n} label={n === DEFAULT_COUNT ? "Alle (bis 60)" : `${n} Karten`} selected={n === count} onPress={() => setCount(n)} />
+                  ))}
+                </View>
               </View>
               <AppText variant="caption" tone="muted">Die KI schlägt Karten vor. Du siehst sie, bevor etwas in den Stapel kommt. Thema, Text und Datei gehen dafür an Google Gemini; vor dem Senden fragt Pensum nach deiner Zustimmung.</AppText>
             </View>
           ) : null}
-        </View>
+        </Panel>
       ) : creating ? (
-        <View style={styles.group}>
-          <Button title="Mit KI erstellen (Kommt bald)" variant="secondary" disabled accessibilityHint="Noch nicht verfügbar" onPress={() => undefined} />
+        <Panel style={styles.ai}>
+          <View
+            accessible
+            accessibilityLabel="Mit KI erstellen (Kommt bald)"
+            accessibilityHint="Noch nicht verfügbar"
+            accessibilityState={{ disabled: true }}
+            style={styles.switchRow}
+          >
+            <AppText variant="bodySm" style={[styles.switchLabel, styles.dimmed]}>Mit KI erstellen</AppText>
+            <Badge label="Kommt bald" style={styles.soonBadge} />
+          </View>
           <AppText variant="caption" tone="muted">Bald gibst du nur dein Thema ein und die KI erstellt die Karten für dich.</AppText>
-        </View>
+        </Panel>
       ) : null}
-      {error ? <AppText tone="danger" accessibilityRole="alert">{error}</AppText> : null}
+      {error ? <FormMessage text={error} /> : null}
       <Button title={creating ? "Stapel erstellen" : "Speichern"} onPress={() => void submit()} />
       {!creating ? (
-        <View style={styles.group}>
-          <AppText variant="label">Stapel löschen</AppText>
-          <Button title="Stapel löschen" variant="danger" onPress={() => void remove()} />
+        <View style={[styles.danger, { borderTopColor: colors.hairlineSoft }]}>
+          <AppText variant="fieldLabel">Stapel löschen</AppText>
+          <Button title="Stapel löschen" variant="secondary" accessibilityHint="Destruktive Aktion" onPress={() => void remove()} />
           <AppText variant="caption" tone="muted">Löscht den Stapel samt aller Karten. Das lässt sich nicht rückgängig machen.</AppText>
         </View>
       ) : null}
@@ -160,9 +177,9 @@ export function CardDialog({ card, onSubmit, onClose }: {
   }
   return (
     <Sheet title="Karte bearbeiten." onClose={onClose}>
-      <Field label="Vorderseite" value={front} onChangeText={setFront} maxLength={1000} multiline />
-      <Field label="Rückseite" value={back} onChangeText={setBack} maxLength={1000} multiline />
-      {error ? <AppText tone="danger" accessibilityRole="alert">{error}</AppText> : null}
+      <Field label="Vorderseite" value={front} onChangeText={setFront} maxLength={1000} multiline style={styles.textarea} />
+      <Field label="Rückseite" value={back} onChangeText={setBack} maxLength={1000} multiline style={styles.textarea} />
+      {error ? <FormMessage text={error} /> : null}
       <Button title="Speichern" onPress={submit} />
     </Sheet>
   );
@@ -171,29 +188,69 @@ export function CardDialog({ card, onSubmit, onClose }: {
 export function StartDialog({ deck, onStart, onClose }: { deck: Deck; onStart: (type: StudyType) => void; onClose: () => void }) {
   return (
     <Sheet title={deck.name} onClose={onClose}>
-      <AppText tone="muted">Wie möchtest du lernen?</AppText>
-      <StartButtons onStart={(t) => { onClose(); onStart(t); }} />
+      <AppText variant="bodySm" tone="muted">Wie möchtest du lernen?</AppText>
+      <StartButtons stacked onStart={(t) => { onClose(); onStart(t); }} />
     </Sheet>
   );
 }
 
-/** Die Knöpfe „Üben“ und „Test“ mit ihren Unterzeilen. */
-export function StartButtons({ onStart, disabled = false }: { onStart: (type: StudyType) => void; disabled?: boolean }) {
+/** Die großen Knöpfe „Üben“ und „Test“ mit ihrer Unterzeile (Web: .kk-start; ab 640 nebeneinander, ab 768 deutlich größer). */
+export function StartButtons({ onStart, disabled = false, stacked = false }: { onStart: (type: StudyType) => void; disabled?: boolean; stacked?: boolean }) {
+  const { width } = useWindowDimensions();
+  const columns = !stacked && width >= 640;
+  const large = !stacked && width >= 768;
   return (
-    <View style={styles.group}>
-      <Button title="Üben" onPress={() => onStart("practice")} disabled={disabled} accessibilityHint="Karte umdrehen, selbst bewerten" />
-      <AppText variant="caption" tone="muted" style={styles.sub}>Karte umdrehen, selbst bewerten</AppText>
-      <Button title="Test" variant="secondary" onPress={() => onStart("test")} disabled={disabled} accessibilityHint="Antwort schriftlich eingeben" />
-      <AppText variant="caption" tone="muted" style={styles.sub}>Antwort schriftlich eingeben</AppText>
+    <View style={[styles.start, columns && styles.startColumns, large && { gap: spacing.lg }]}>
+      <StartButton title="Üben" sub="Karte umdrehen, selbst bewerten" primary large={large} columns={columns} disabled={disabled} onPress={() => onStart("practice")} />
+      <StartButton title="Test" sub="Antwort schriftlich eingeben" large={large} columns={columns} disabled={disabled} onPress={() => onStart("test")} />
     </View>
+  );
+}
+
+function StartButton({ title, sub, primary = false, large, columns, disabled, onPress }: { title: string; sub: string; primary?: boolean; large: boolean; columns: boolean; disabled: boolean; onPress: () => void }) {
+  const { colors } = usePensumTheme();
+  const foreground = primary ? colors.onPrimary : colors.ink;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={sub}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.startButton,
+        columns && styles.startButtonFlex,
+        large && styles.startButtonLarge,
+        {
+          backgroundColor: primary ? (pressed ? colors.inkSoft : colors.ink) : pressed ? colors.surface : colors.canvas,
+          borderColor: primary ? "transparent" : colors.border,
+          opacity: disabled ? 0.5 : 1,
+        },
+      ]}
+    >
+      <AppText variant="link" accessible={false} style={[styles.startTitle, { color: foreground }, large && { fontSize: 28, lineHeight: 34 }]}>{title}</AppText>
+      <AppText variant="caption" accessible={false} style={[styles.startSub, { color: foreground }, large && { fontSize: 15, lineHeight: 20 }]}>{sub}</AppText>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   group: { gap: spacing.sm },
-  modes: { gap: spacing.sm },
-  mode: { alignSelf: "stretch" },
-  sub: { textAlign: "center" },
+  wrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" },
+  ai: { padding: spacing.lg, gap: spacing.md, borderRadius: radius.field },
+  aiBody: { gap: spacing.lg },
+  dimmed: { opacity: 0.55 },
+  soonBadge: { alignSelf: "center" },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, minHeight: 44 },
-  switchLabel: { flexShrink: 1 },
+  switchLabel: { flexShrink: 1, fontWeight: "600" },
+  textarea: { minHeight: 96 },
+  danger: { gap: spacing.sm, paddingTop: spacing.lg, borderTopWidth: 1 },
+  start: { gap: spacing.md },
+  startColumns: { flexDirection: "row" },
+  startButton: { minHeight: 64, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderCurve: "continuous", borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  startButtonFlex: { flex: 1 },
+  startButtonLarge: { minHeight: 160, borderRadius: 40 },
+  startTitle: { textAlign: "center" },
+  startSub: { textAlign: "center", opacity: 0.8 },
 });
