@@ -1,0 +1,15 @@
+node_modules/
+.expo/
+.expo-shared/
+/dist/
+/ios/
+/android/
+/.env*
+!/.env.example
+*.tsbuildinfo
+*.ipa
+*.p12
+*.mobileprovision
+/PENSUM-IOS-STATUS.md
+/.pensum-ios-status.lock/
+/.PENSUM-IOS-STATUS.*.tmp
