@@ -34,8 +34,7 @@ export const DEFAULT_SETTINGS: InkSettings = { mode: "ink", font: "Caveat", pape
 /** App → WebView */
 export type HostRequest =
   | { type: "render"; id: string; text: string; settings: InkSettings }
-  | { type: "export-pdf"; id: string }
-  | { type: "export-goodnotes"; id: string }
+  | { type: "export-pdf" | "export-goodnotes"; id: string; text: string; settings: InkSettings }
   | { type: "template"; id: string; name: string; base64: string }
   | { type: "clear-template"; id: string }
   | { type: "set-hand"; id: string; packed: unknown | null };

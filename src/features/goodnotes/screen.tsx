@@ -41,10 +41,10 @@ export default function GoodnotesScreen() {
   const giveUp = useCallback(() => setError(ENGINE_GIVEUP_MESSAGE), []);
   const { web, ready, setReady, instance, getQueue, request, handleTerminated } = useWebViewChannel({ idPrefix: "gn", onGiveUp: giveUp });
 
-  // Übergabe aus „Abschreiben“ (einmal lesen, danach leer)
+  // Werkzeugübergabe einmalig aus dem Arbeitsspeicher übernehmen.
   useEffect(() => {
     const h = takeHandoff();
-    if (h) { setText(h.text); setFileName(h.name); setNotice("Text aus „Abschreiben“ übernommen."); }
+    if (h) { setText(h.text); setFileName(h.name); setNotice("Text aus dem vorherigen Werkzeug übernommen."); }
   }, []);
 
   // Zeitlimit (Export 60 s, sonst 20 s) und Abbruch bei Absturz/Unmount stecken in der Queue (request-queue.ts)
@@ -100,7 +100,13 @@ export default function GoodnotesScreen() {
       if (!asset) return;
       const picked = new File(asset.uri);
       let base64: string;
-      try { base64 = bytesToBase64(await picked.bytes()); } finally { deleteQuietly(picked); } // Kopie im Cache wird nicht mehr gebraucht
+      try {
+        const size = asset.size ?? picked.size;
+        if (!size || size > 25 * 1024 * 1024) throw new Error("Wähle eine .goodnotes-Vorlage bis 25 MB.");
+        base64 = bytesToBase64(await picked.bytes());
+      } finally {
+        deleteQuietly(picked);
+      }
       const res = await call({ type: "template", name: asset.name, base64 });
       if (res.type === "template-ok") { templateRef.current = { name: asset.name, base64 }; setTemplate(asset.name); setNotice("Eigene Vorlage geladen."); }
     } catch (e) { templateRef.current = null; setTemplate(null); setError(e instanceof Error ? e.message : "Datei konnte nicht gelesen werden."); }
@@ -114,7 +120,8 @@ export default function GoodnotesScreen() {
     setBusy(kind); setError(null); setNotice(null);
     const made: File[] = [];
     try {
-      const res = await call({ type: kind === "pdf" ? "export-pdf" : "export-goodnotes" });
+      if (!await Sharing.isAvailableAsync()) throw new Error("Teilen ist auf diesem Gerät nicht verfügbar.");
+      const res = await call({ type: kind === "pdf" ? "export-pdf" : "export-goodnotes", text, settings });
       if (res.type !== "exported") throw new Error("Unerwartete Antwort der Engine.");
       const names = exportFileNames(fileName, kind, res.files.length);
       for (let i = 0; i < res.files.length; i++) {
@@ -122,8 +129,7 @@ export default function GoodnotesScreen() {
         if (file.exists) file.delete();
         file.create();
         made.push(file);
-        await file.write(base64ToBytes(res.files[i] ?? ""));
-        if (!(await Sharing.isAvailableAsync())) throw new Error("Teilen ist auf diesem Gerät nicht verfügbar.");
+        file.write(base64ToBytes(res.files[i] ?? ""));
         await Sharing.shareAsync(file.uri, {
           mimeType: kind === "pdf" ? "application/pdf" : "application/octet-stream",
           UTI: kind === "pdf" ? "com.adobe.pdf" : undefined,

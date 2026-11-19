@@ -5,7 +5,7 @@ import { noToolAccess, type ToolAccess } from '../contracts';
 // Sichtbarkeit und Reihenfolge folgen Pensum js/tools.js und js/home.js (770dbe4). Spiele sind vom iOS-Umfang ausgenommen.
 export const TOOL_ORDER = [
   'goodnotes', 'mindmap', 'kichat', 'aufgaben', 'abschreiben', 'karteikarten',
-  'planer', 'videos', 'spiele', 'admin', 'notenrechner',
+  'planer', 'videos', 'admin', 'notenrechner',
 ] as const;
 
 export type ToolId = (typeof TOOL_ORDER)[number];
@@ -27,7 +27,7 @@ const definitions: Record<ToolId, Omit<Tool, 'id'>> = {
     description: 'Text in Handschrift verwandeln und als Goodnotes-Datei oder PDF exportieren.',
     symbol: { ios: 'pencil.line', android: 'draw', web: 'draw' },
     access: 'public',
-    implementation: 'unavailable',
+    implementation: 'native',
   },
   mindmap: {
     title: 'Mindmap-Generator',
@@ -77,13 +77,6 @@ const definitions: Record<ToolId, Omit<Tool, 'id'>> = {
     symbol: { ios: 'play.rectangle', android: 'smart_display', web: 'smart_display' },
     access: 'tester',
     implementation: 'unavailable',
-  },
-  spiele: {
-    title: 'Spiele',
-    description: 'Vier gewinnt gegen den Computer mit drei Schwierigkeitsstufen.',
-    symbol: { ios: 'gamecontroller', android: 'sports_esports', web: 'sports_esports' },
-    access: 'tester',
-    implementation: 'native',
   },
   notenrechner: {
     title: 'Notenrechner',
