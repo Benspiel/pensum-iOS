@@ -2,10 +2,10 @@ import type { ExpoConfig } from 'expo/config';
 
 const developmentBundleId = 'dev.buchholz.pensum';
 const bundleIdentifier = process.env.EXPO_PUBLIC_IOS_BUNDLE_ID || developmentBundleId;
-const easProjectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+const easProjectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || 'd5310afc-6b5f-4c1a-b198-5a833472ae77';
 const appleTeamId = process.env.EXPO_PUBLIC_APPLE_TEAM_ID;
-const owner = process.env.EXPO_PUBLIC_EXPO_OWNER;
-const slug = process.env.EXPO_PUBLIC_EAS_PROJECT_SLUG || 'pensum-ios';
+const owner = process.env.EXPO_PUBLIC_EXPO_OWNER || 'bookwoods-team';
+const slug = process.env.EXPO_PUBLIC_EAS_PROJECT_SLUG || 'pensum';
 
 const config: ExpoConfig = {
   name: 'Pensum',
@@ -15,7 +15,7 @@ const config: ExpoConfig = {
   scheme: ['pensum', 'appwrite-callback-6af569a7000d660f3559'],
   icon: './assets/app-icon.png',
   userInterfaceStyle: 'automatic',
-  ...(owner ? { owner } : {}),
+  owner,
   ios: {
     bundleIdentifier,
     supportsTablet: true,
@@ -36,7 +36,7 @@ const config: ExpoConfig = {
       },
     ],
   ],
-  ...(easProjectId ? { extra: { eas: { projectId: easProjectId } } } : {}),
+  extra: { eas: { projectId: easProjectId } },
 };
 
 export default config;

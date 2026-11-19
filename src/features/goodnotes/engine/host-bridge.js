@@ -1,36 +1,76 @@
-/* Brücke App ↔ Engine (läuft in der WebView). Nachrichten: siehe ../protocol.ts */
-const post = (m) => window.ReactNativeWebView.postMessage(JSON.stringify(m));
+/* Brücke zwischen Expo und der lokal gebündelten Tinten-Engine. */
+const post = (message) => window.ReactNativeWebView.postMessage(JSON.stringify(message));
 const engine = createInkEngine();
-let pages = [], inkPages = [];
-const toB64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
-async function handle(msg) {
-  try {
-    if (msg.type === "render") {
-      Object.assign(engine.state, msg.settings || {});
-      try { await document.fonts.load('400 40px "' + (engine.state.font === engine.HAND_ID ? "Caveat" : engine.state.font) + '"'); await document.fonts.load(engine.fontSpec(40, true)); } catch (_) {}
-      const r = engine.render(msg.text || ""); pages = r.canvases; inkPages = r.inkPages;
-      post({ type: "rendered", id: msg.id, pages: pages.map((c) => c.toDataURL("image/png")) });
-    } else if (msg.type === "export-pdf") {
-      if (!pages.length) throw new Error("Es gibt noch nichts zum Exportieren.");
-      post({ type: "exported", id: msg.id, kind: "pdf", files: [await toB64(new Blob([engine.buildPdf(pages)], { type: "application/pdf" }))] });
-    } else if (msg.type === "export-goodnotes") {
-      if (!pages.length) throw new Error("Es gibt noch nichts zum Exportieren.");
-      const t = await engine.activeTemplate(); const files = []; const ink = engine.state.mode === "ink";
-      for (let i = 0; i < pages.length; i++) files.push(await toB64(await engine.buildGoodnotes(t, [pages[i]], ink ? inkPages[i] : null)));
-      post({ type: "exported", id: msg.id, kind: "goodnotes", files });
-    } else if (msg.type === "template") {
-      const bytes = Uint8Array.from(atob(msg.base64), (c) => c.charCodeAt(0));
-      engine.state.custom = await engine.inspectTemplate(bytes.buffer, msg.name);
-      post({ type: "template-ok", id: msg.id, pageSize: engine.state.custom.pageSize, hasInk: !!engine.state.custom.hasInk });
-    } else if (msg.type === "set-hand") {
-      const hand = msg.packed ? engine.unpackHand(msg.packed) : null;
-      engine.state.hand = hand && Object.keys(hand.glyphs).length ? hand : null;
-      post({ type: "hand-set", id: msg.id, count: engine.state.hand ? Object.keys(engine.state.hand.glyphs).length : 0 });
-    } else if (msg.type === "clear-template") {
-      engine.state.custom = null; post({ type: "template-cleared", id: msg.id });
-    }
-  } catch (e) { post({ type: "error", id: msg.id, message: String((e && e.message) || e) }); }
+
+function toBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1]);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
 }
-const onMsg = (ev) => { let m; try { m = JSON.parse(ev.data); } catch (_) { return; } handle(m); };
-document.addEventListener("message", onMsg); window.addEventListener("message", onMsg);
+
+async function renderDocument({ text, settings }) {
+  Object.assign(engine.state, settings);
+  const font = engine.state.font === engine.HAND_ID ? "Caveat" : engine.state.font;
+  try {
+    await document.fonts.load('400 40px "' + font + '"');
+    await document.fonts.load(engine.fontSpec(40, true));
+  } catch {
+    // Canvas can use the default font if the bundled font failed to load.
+  }
+  return engine.render(text || "");
+}
+
+async function handle(message) {
+  const { id, type } = message;
+  try {
+    if (type === "render") {
+      const { canvases } = await renderDocument(message);
+      post({ type: "rendered", id, pages: canvases.map((canvas) => canvas.toDataURL("image/png")) });
+    } else if (type === "export-pdf" || type === "export-goodnotes") {
+      const { canvases, inkPages } = await renderDocument(message);
+      if (!canvases.length) throw new Error("Es gibt noch nichts zum Exportieren.");
+      if (type === "export-pdf") {
+        const pdf = new Blob([engine.buildPdf(canvases)], { type: "application/pdf" });
+        post({ type: "exported", id, kind: "pdf", files: [await toBase64(pdf)] });
+      } else {
+        const template = await engine.activeTemplate();
+        const ink = engine.state.mode === "ink";
+        const files = [];
+        for (const [index, canvas] of canvases.entries()) {
+          files.push(await toBase64(await engine.buildGoodnotes(template, [canvas], ink ? inkPages[index] : null)));
+        }
+        post({ type: "exported", id, kind: "goodnotes", files });
+      }
+    } else if (type === "template") {
+      const bytes = Uint8Array.from(atob(message.base64), (character) => character.charCodeAt(0));
+      const template = await engine.inspectTemplate(bytes.buffer, message.name);
+      engine.state.custom = template;
+      post({ type: "template-ok", id, pageSize: template.pageSize, hasInk: !!template.hasInk });
+    } else if (type === "set-hand") {
+      const hand = message.packed ? engine.unpackHand(message.packed) : null;
+      engine.state.hand = hand && Object.keys(hand.glyphs).length ? hand : null;
+      post({ type: "hand-set", id, count: engine.state.hand ? Object.keys(engine.state.hand.glyphs).length : 0 });
+    } else if (type === "clear-template") {
+      engine.state.custom = null;
+      post({ type: "template-cleared", id });
+    }
+  } catch (error) {
+    post({ type: "error", id, message: String(error?.message || error) });
+  }
+}
+
+let queue = Promise.resolve();
+function onMessage(event) {
+  let message;
+  try { message = JSON.parse(event.data); } catch { return; }
+  if (!message || typeof message.id !== "string") return;
+  // Every command shares the same engine state, including its template and handwriting.
+  queue = queue.then(() => handle(message), () => handle(message));
+}
+
+document.addEventListener("message", onMessage);
+window.addEventListener("message", onMessage);
 post({ type: "ready" });

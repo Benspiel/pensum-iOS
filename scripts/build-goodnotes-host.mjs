@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dir = path.join(root, "src/features/goodnotes");
 const E = path.join(dir, "engine");
-const read = (p) => fs.readFileSync(path.join(E, p), "utf8");
+const read = (p) => fs.readFileSync(path.join(E, p), "utf8").replace(/\r\n?/g, "\n");
 const b64 = (p) => fs.readFileSync(path.join(E, p)).toString("base64");
 
 const fonts = [
@@ -21,15 +21,15 @@ const css = fonts.map(([f, w, p]) => `@font-face{font-family:"${f}";font-weight:
 const engine = read("ink-engine.js").replace(/^export function createInkEngine/m, "function createInkEngine");
 const bridge = read("host-bridge.js");
 // </script> in eingebettetem Code würde den Block schließen
-const safe = (s) => s.replace(/<\/script/gi, "<\/script");
-const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style>
+const safe = (source) => source.replace(/<\/script/gi, (tag) => "<\\/" + tag.slice(2));
+const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">`;
+const html = `<!doctype html><meta charset="utf-8">${csp}<meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style>
 <script>${safe(read("jszip.min.js"))}</script><script>${safe(read("jspdf.umd.min.js"))}</script><script>${safe(read("templates.js"))}</script>
-<script>${safe(engine)}\n${bridge}</script>`;
-// Zeichenfeld für die eigene Handschrift: nur Engine (rdp, HAND_CHARS) + Pad-Brücke + Caveat als Hilfsbuchstabe
-// Zeichenfeld für die eigene Handschrift: nur Engine (rdp, HAND_CHARS) + Pad-Brücke + Caveat als Hilfsbuchstabe
+<script>${safe(engine)}\n${safe(bridge)}</script>`;
+// Zeichenfeld für die eigene Handschrift: Engine, Pad-Brücke und Caveat als Hilfsbuchstabe.
 const caveat = fonts.find(([f, w]) => f === "Caveat" && w === 400);
 const padCss = `@font-face{font-family:"Caveat";font-weight:400;src:url(data:font/woff2;base64,${b64(`fonts/${caveat[2]}.woff2`)}) format("woff2")}`;
-const padHtml = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><style>${padCss}
+const padHtml = `<!doctype html><meta charset="utf-8">${csp}<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><style>${padCss}
 html,body{margin:0;height:100%;background:#fff;overflow:hidden}#pad{display:block;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none}</style>
 <canvas id="pad"></canvas><script>${safe(engine)}
 ${safe(read("pad-bridge.js"))}</script>`;

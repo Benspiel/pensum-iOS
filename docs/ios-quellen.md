@@ -13,4 +13,6 @@ Die Referenz ist das Pensum-Web-Repository bei Commit `770dbe4e26236e4371126f5fc
 | `src/features/{mindmap,abschreiben,aufgaben,kichat,videos,admin}/` | `tools/<werkzeug>/`, `functions/<dienst>/` | Pensum-Function-Verträge und Funktionsgrenzen; native Oberflächen und für Aufgaben lokales PDF-Raster per Core Graphics. |
 | `src/features/{notenrechner,planer,karteikarten}/` | `tools/<werkzeug>/core.js`, `tools/<werkzeug>/store.js`, `tests/` | Typisierte Ports von Fachlogik und Tests. Versionsbezug steht auch in den Dateien. |
 
-Die übernommenen Pensum-eigenen Teile werden im Auftrag für Pensum verwendet. Abhängigkeiten und exakte Versionen stehen im npm-Lockfile; Expo Router, React Native und die übrigen Pakete bringen ihre jeweiligen Lizenzdateien mit. Weitere übernommene Web-Assets für Goodnotes und Spiele werden beim jeweiligen Modul dokumentiert.
+Das native Appwrite-SDK ist auf Version 1.3.0 für Self-Hosted 2.3.x festgelegt. Dateiauswahl, Bildkonvertierung und Datei-Freigabe verwenden das zum Expo SDK 58 passende Dateisystem. Die Functions erhalten Medien im Format ihres jeweiligen Web-Vertrags.
+
+Die übernommenen Pensum-eigenen Teile werden im Auftrag für Pensum verwendet. Abhängigkeiten und exakte Versionen stehen im npm-Lockfile; Expo Router, React Native und die übrigen Pakete bringen ihre jeweiligen Lizenzdateien mit. Die eingebetteten Goodnotes-Assets stehen in [Drittanbieter-Komponenten](THIRD-PARTY.md).
