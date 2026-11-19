@@ -32,13 +32,16 @@ public final class PensumDocumentsModule: Module {
       guard pageNumber > 0, pageNumber <= document.numberOfPages,
             let page = document.page(at: pageNumber) else { throw DocumentError.invalidPDF }
       let box = page.getBoxRect(.cropBox)
-      let rotated = abs(page.rotationAngle) % 180 == 90
+      let rotated = page.rotationAngle % 180 != 0
       let size = rotated ? CGSize(width: box.height, height: box.width) : box.size
       guard size.width > 0, size.height > 0, size.width.isFinite, size.height.isFinite else {
         throw DocumentError.invalidPDF
       }
-      let scale = 2300 / max(size.width, size.height)
-      let outputSize = CGSize(width: max(1, (size.width * scale).rounded()), height: max(1, (size.height * scale).rounded()))
+      let longestEdge = max(size.width, size.height)
+      let outputSize = CGSize(
+        width: max(1, (size.width / longestEdge * 2300).rounded()),
+        height: max(1, (size.height / longestEdge * 2300).rounded())
+      )
       let rect = CGRect(origin: .zero, size: outputSize)
       let image = self.imageRenderer(outputSize).image { context in
         UIColor.white.setFill()
@@ -50,7 +53,7 @@ public final class PensumDocumentsModule: Module {
         graphics.drawPDFPage(page)
       }
       guard let bytes = image.jpegData(compressionQuality: 0.93) else { throw DocumentError.exportFailed }
-      let file = try self.save(bytes, extension: "jpg")
+      let file = try self.save(bytes, suffix: "jpg")
       return ["uri": file.absoluteString, "width": Int(outputSize.width), "height": Int(outputSize.height)]
     }
 
@@ -76,10 +79,10 @@ public final class PensumDocumentsModule: Module {
           context.beginPage()
           image.draw(in: page)
         }
-        return try self.save(bytes, extension: "pdf").absoluteString
+        return try self.save(bytes, suffix: "pdf").absoluteString
       }
       guard let bytes = image.pngData() else { throw DocumentError.exportFailed }
-      return try self.save(bytes, extension: "png").absoluteString
+      return try self.save(bytes, suffix: "png").absoluteString
     }
   }
 
@@ -90,7 +93,7 @@ public final class PensumDocumentsModule: Module {
     return pdf
   }
 
-  private func save(_ bytes: Data, extension suffix: String) throws -> URL {
+  private func save(_ bytes: Data, suffix: String) throws -> URL {
     let file = FileManager.default.temporaryDirectory
       .appendingPathComponent("Pensum-\(UUID().uuidString)")
       .appendingPathExtension(suffix)
