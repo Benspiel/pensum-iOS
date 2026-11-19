@@ -9,7 +9,7 @@ Alle Dateien liegen im Repository und werden mit der App ausgeliefert (kein CDN,
 | `ink-engine.js` | Inkly (https://github.com/Benspiel/Inkly, `app.js`), Autor: Auftraggeber; aus Pensum-Web `tools/goodnotes/ink-engine.js` @ 770dbe4, Export-Logik unverändert, Kapselung als Modul | MIT (Inkly) |
 | `templates.js` | Pensum-Web `tools/goodnotes/templates.js` @ 770dbe4 (Papier-Vorlagen als Base64, aus Goodnotes-Export-Hüllen erzeugt) | eigene Arbeit des Auftraggebers; vor Veröffentlichung Rechte an den Hüllen prüfen |
 | `jszip.min.js` | JSZip 3.10.1, https://github.com/Stuk/jszip | MIT oder GPL-3.0 (Wahl: MIT) |
-| `jspdf.umd.min.js` | jsPDF, https://github.com/parallax/jsPDF | MIT |
+| `jspdf.umd.min.js` | jsPDF 4.2.1, https://github.com/parallax/jsPDF; Browser-UMD-Build `dist/jspdf.umd.min.js` aus dem npm-Paket `jspdf@4.2.1` (Stand 17.03.2026; behebt alle bis dahin veröffentlichten GitHub-Sicherheitshinweise, u. a. CVE-2026-31938, CVE-2026-31898). SHA-256 `e6551fcdc32f09d6853b2c5126d18d01d9447e0da618a41a11ebeee0f6c20d54`. Vorher: 2.5.1 (2022). Von der Engine genutzt: `new jsPDF({unit,format,orientation,compress})`, `addPage`, `addImage`, `output("arraybuffer")` – unverändert kompatibel | MIT |
 | `fonts/caveat-*.woff2` | Caveat, The Caveat Project Authors | SIL OFL 1.1 (`fonts/caveat-LICENSE.txt`) |
 | `fonts/kalam-*.woff2` | Kalam, Indian Type Foundry | SIL OFL 1.1 (`fonts/kalam-LICENSE.txt`) |
 | `fonts/patrick-hand-*.woff2` | Patrick Hand, Patrick Wagesreiter | SIL OFL 1.1 (`fonts/patrick-hand-LICENSE.txt`) |
