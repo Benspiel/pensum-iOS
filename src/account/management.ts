@@ -100,10 +100,3 @@ export async function getAccountDevices(scope: AccountScope) {
   return sessions.toSorted((a, b) => Number(b.current) - Number(a.current)
     || Date.parse(b.$createdAt) - Date.parse(a.$createdAt));
 }
-
-export async function getGoogleIdentity(scope: AccountScope) {
-  requireAccountScope(scope);
-  const { identities } = await account.listIdentities();
-  requireAccountScope(scope);
-  return identities.find((identity) => identity.provider === 'google') ?? null;
-}

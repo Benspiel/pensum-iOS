@@ -6,7 +6,7 @@ import { googleAuthEnabled } from '../../src/backend/config';
 import { PensumError, type SessionUser } from '../../src/contracts';
 import { Notice, useAccountAction } from '../../src/account/forms';
 import {
-  clearAccountContents, getAccountDevices, getGoogleIdentity, requireAccountScope, shareAccountExport,
+  clearAccountContents, getAccountDevices, requireAccountScope, shareAccountExport,
 } from '../../src/account/management';
 import { type AccountScope, type EmailCode, useSession } from '../../src/account/session';
 import { AppText, Button, Card, ErrorState, Field, LoadingState, Screen, Segmented, ThemeSelector, type SegmentedOption } from '../../src/ui';
@@ -185,7 +185,6 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
   const [newPassword, setNewPassword] = useState('');
   const [deletion, setDeletion] = useState('');
   const [devices, setDevices] = useState<Awaited<ReturnType<typeof getAccountDevices>> | null>(null);
-  const [identity, setIdentity] = useState<Awaited<ReturnType<typeof getGoogleIdentity>> | undefined>(undefined);
   const [tab, setTab] = useState<typeof accountTabs[number]['id']>('profile');
   const disabled = offline || action.busy;
   function selectTab(next: typeof tab) {
@@ -270,19 +269,6 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
                 setOldPassword('');
                 setNewPassword('');
               }, 'Passwort geändert.')} />
-            <Button title="Google-Verbindung prüfen" variant="secondary" disabled={disabled}
-              onPress={() => void action.run(async () => { setIdentity(await getGoogleIdentity(scope)); })} />
-            {identity === null ? <AppText tone="muted">Google ist mit diesem Konto nicht verbunden.</AppText> : null}
-            {identity ? <>
-              <AppText>{identity.providerEmail || 'Google-Konto verbunden'}</AppText>
-              <Button title="Verbindung zu Google lösen" variant="secondary" disabled={disabled}
-                onPress={() => ask('Verbindung zu Google lösen?', 'Stelle sicher, dass du ein Passwort für dein Konto eingerichtet hast.', 'Verbindung lösen',
-                  () => void action.run(async () => {
-                    requireAccountScope(scope);
-                    await account.deleteIdentity({ identityId: identity.$id });
-                    setIdentity(null);
-                  }, 'Google-Verbindung gelöst.'))} />
-            </> : null}
           </Card>
           <Card>
             <AppText variant="section">Geräte</AppText>
