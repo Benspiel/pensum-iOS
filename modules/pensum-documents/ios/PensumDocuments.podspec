@@ -7,10 +7,11 @@ Pod::Spec.new do |s|
   s.author         = 'Pensum'
   s.homepage       = 'https://pensum-omega.vercel.app'
   s.platforms      = { :ios => '16.4' }
-  s.swift_version  = '5.9'
+  s.swift_version  = '5.0'
   s.source         = { :git => '' }
   s.static_framework = true
   s.dependency 'ExpoModulesCore'
   s.frameworks      = 'UIKit', 'CoreGraphics'
   s.source_files    = '**/*.swift'
+  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
 end
