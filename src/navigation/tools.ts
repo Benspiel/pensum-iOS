@@ -34,28 +34,28 @@ const definitions: Record<ToolId, Omit<Tool, 'id'>> = {
     description: 'Ein Thema mit KI in einer Mindmap aufbereiten und im Editor weiterbearbeiten.',
     symbol: { ios: 'point.3.connected.trianglepath.dotted', android: 'account_tree', web: 'account_tree' },
     access: 'public',
-    implementation: 'unavailable',
+    implementation: 'native',
   },
   kichat: {
     title: 'KI-Chat',
     description: 'Mit der Gemini-KI chatten und Unterhaltungen im Konto weiterführen.',
     symbol: { ios: 'bubble.left.and.bubble.right', android: 'forum', web: 'forum' },
     access: 'kiTester',
-    implementation: 'unavailable',
+    implementation: 'native',
   },
   aufgaben: {
     title: 'Aufgaben',
     description: 'Ein Arbeitsblatt mit KI ausfüllen und das Ergebnis als PDF oder Bild exportieren.',
     symbol: { ios: 'checkmark.rectangle', android: 'assignment_turned_in', web: 'assignment_turned_in' },
     access: 'tester',
-    implementation: 'unavailable',
+    implementation: 'native',
   },
   abschreiben: {
     title: 'Abschreiben',
     description: 'Text aus einem Tafelbild erkennen, kopieren oder in Handschrift umwandeln.',
     symbol: { ios: 'camera.viewfinder', android: 'document_scanner', web: 'document_scanner' },
     access: 'public',
-    implementation: 'unavailable',
+    implementation: 'native',
   },
   karteikarten: {
     title: 'Karteikarten',
@@ -97,7 +97,7 @@ const definitions: Record<ToolId, Omit<Tool, 'id'>> = {
     description: 'Plattformzahlen und die Nutzung der Pensum-Tools ansehen.',
     symbol: { ios: 'chart.bar', android: 'bar_chart', web: 'bar_chart' },
     access: 'admin',
-    implementation: 'unavailable',
+    implementation: 'native',
   },
 };
 

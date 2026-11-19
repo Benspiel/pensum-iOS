@@ -4,6 +4,7 @@ export const projectId = '6af569a7000d660f3559';
 export const databaseId = 'pensum';
 export const bundleIdentifier = process.env.EXPO_PUBLIC_IOS_BUNDLE_ID || 'dev.buchholz.pensum';
 export const appwriteCallbackScheme = `appwrite-callback-${projectId}`;
+export const googleAuthEnabled = process.env.EXPO_PUBLIC_GOOGLE_AUTH_ENABLED === 'true';
 
 export const tableIds = {
   subjects: 'subjects',
