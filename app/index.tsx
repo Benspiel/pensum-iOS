@@ -1,12 +1,14 @@
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useRef } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
+import { useMemo, useRef } from 'react';
+import { Animated, Image, Pressable, StyleSheet, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 
 import { useSession } from '../src/account/session';
 import { getToolAvailability, tools, type Tool, type ToolAvailability } from '../src/navigation/tools';
 import { gutter, radius, spacing, squircleRadius, usePensumTheme } from '../src/theme';
 import { AppText, Badge, Button, Card, Screen, SquircleIcon, TintContext } from '../src/ui';
+import { ParallaxBackground } from '../src/ui/ParallaxBackground';
+import { motionFactor } from '../src/ui/parallax';
 
 const BREAKPOINT_GRID = 690;
 const CONTENT_MAX = 760;
@@ -16,8 +18,22 @@ const logo = require('../assets/app-icon.png');
 export default function HomeScreen() {
   const router = useRouter();
   const { state, access } = useSession();
-  const { width, fontScale } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
   const scroller = useRef<ScrollViewInstance>(null);
+  // Scrollstand für den Parallax-Hintergrund und den Hero-Text (Vorlage: js/parallax.js der Website)
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const onScroll = useMemo(
+    () => Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true }),
+    [scrollY],
+  );
+  const heroShift = useMemo(
+    () => scrollY.interpolate({ inputRange: [0, 4000], outputRange: [0, 4000 * 0.12 * motionFactor(width)], extrapolate: 'clamp' }),
+    [scrollY, width],
+  );
+  const heroFade = useMemo(
+    () => scrollY.interpolate({ inputRange: [0, Math.max(1, height * 0.85)], outputRange: [1, 0], extrapolate: 'clamp' }),
+    [scrollY, height],
+  );
   const toolsTop = useRef(0);
   const grid = width >= BREAKPOINT_GRID && fontScale <= 1.25;
   const cardWidth = (Math.min(width, CONTENT_MAX) - 2 * gutter(width) - CARD_GAP) / 2;
@@ -30,18 +46,23 @@ export default function HomeScreen() {
     <Screen includeTopInset scroll={false} contentStyle={styles.screen}>
       <NavPill label={signedIn || state.status === 'loading' ? 'Konto' : 'Anmelden'} open={() => router.push('/konto')} />
 
-      <ScrollView
+      <Animated.ScrollView
         ref={scroller}
         style={styles.scroller}
         contentContainerStyle={styles.scrollContent}
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
-        <Hero
-          accountLabel={state.status === 'guest' ? 'Konto erstellen' : 'Konto'}
-          showTools={() => scroller.current?.scrollTo({ y: Math.max(0, toolsTop.current - spacing.lg), animated: true })}
-          openAccount={() => router.push('/konto')}
-        />
+        <ParallaxBackground scrollY={scrollY} />
+        <Animated.View style={{ opacity: heroFade, transform: [{ translateY: heroShift }] }}>
+          <Hero
+            accountLabel={state.status === 'guest' ? 'Konto erstellen' : 'Konto'}
+            showTools={() => scroller.current?.scrollTo({ y: Math.max(0, toolsTop.current - spacing.lg), animated: true })}
+            openAccount={() => router.push('/konto')}
+          />
+        </Animated.View>
 
         <View style={styles.toolSection} onLayout={(event) => { toolsTop.current = event.nativeEvent.layout.y; }}>
           <AppText variant="h3" accessibilityRole="header">Werkzeuge</AppText>
@@ -64,7 +85,7 @@ export default function HomeScreen() {
             </Card>
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </Screen>
   );
 }
