@@ -183,8 +183,8 @@ export function Button({
           backgroundColor: pressed ? palette.pressed : palette.bg,
           borderColor: palette.border,
           opacity: disabled ? 0.5 : pressed && variant === 'plain' ? 0.6 : 1,
-          transform: pressed && variant !== 'plain' ? [{ scale: 0.97 }] : undefined,
         },
+        pressed && variant !== 'plain' && styles.buttonPressed,
         style,
       ]}
     >
@@ -509,6 +509,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  buttonPressed: { transform: [{ scale: 0.97 }] },
   buttonText: { textAlign: 'center', flexShrink: 1 },
   underline: { textDecorationLine: 'underline' },
   fieldGroup: { gap: spacing.sm },
