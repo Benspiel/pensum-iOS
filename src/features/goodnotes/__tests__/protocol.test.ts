@@ -82,3 +82,34 @@ test("Regler: Beschriftung", () => {
   assert.equal(rangeLabel("weight", 1.5), "1.50×");
   assert.deepEqual([0, 0.5, 1, 1.5].map((v) => rangeLabel("jitter", v)), ["keine", "wenig", "mittel", "stark"]);
 });
+
+import { parsePadMessage, padNextLabel, padProgressLabel, handVaryLabel } from "../protocol";
+import { GOODNOTES_PAD_HTML } from "../host-html.generated";
+
+test("Pad-Nachrichten", () => {
+  const st = '{"type":"pad-state","idx":2,"char":"c","total":60,"done":[true,false],"doneCount":1,"current":false}';
+  assert.deepEqual(parsePadMessage(st), { type: "pad-state", idx: 2, char: "c", total: 60, done: [true, false], doneCount: 1, current: false });
+  assert.equal(parsePadMessage('{"type":"pad-state","idx":"x"}'), null);
+  assert.equal(parsePadMessage('{"type":"packed","id":"a","packed":{"glyphs":{"a":{}}}}')!.type, "packed");
+  assert.equal(parsePadMessage('{"type":"packed","id":"a","packed":{}}'), null);
+  assert.equal(parsePadMessage("kaputt"), null);
+  assert.equal(parsePadMessage('{"type":"pad-error","id":"a"}')!.type, "pad-error");
+  assert.deepEqual(parseHostMessage('{"type":"hand-set","id":"h","count":3}'), { type: "hand-set", id: "h", count: 3 });
+});
+
+test("Pad-Beschriftungen wie im Web", () => {
+  assert.equal(padNextLabel(59, 60, true), "Fertig");
+  assert.equal(padNextLabel(3, 60, true), "Weiter");
+  assert.equal(padNextLabel(3, 60, false), "Überspringen");
+  assert.equal(padProgressLabel({ idx: 0, total: 60, doneCount: 0 }), "Zeichen 1 von 60 · 0 gezeichnet");
+  assert.deepEqual([0.3, 1, 1.4, 1.5].map(handVaryLabel), ["leicht", "mittel", "mittel", "stark"]);
+});
+
+test("Pad-HTML: lokal, Skripte parsen, Canvas vorhanden", () => {
+  assert.ok(GOODNOTES_PAD_HTML.includes('<canvas id="pad">'));
+  const scripts = [...GOODNOTES_PAD_HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1] as string);
+  assert.equal(scripts.length, 1);
+  assert.doesNotThrow(() => new Function(scripts[0]!));
+  const shell = GOODNOTES_PAD_HTML.replace(/<script>[\s\S]*?<\/script>/g, "").replace(/url\(data:[^)]*\)/g, "");
+  assert.ok(!/https?:\/\//i.test(shell), "keine externen Ressourcen");
+});
