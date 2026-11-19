@@ -14,22 +14,20 @@ import { HandPad } from "./HandPad";
 import { handInfo } from "./hand-store";
 import { GOODNOTES_HOST_HTML } from "./host-html.generated";
 import { useHand } from "./useHand";
+import { deleteQuietly, ENGINE_GIVEUP_MESSAGE } from "./request-queue";
+import { useWebViewChannel } from "./useWebViewChannel";
 import {
-  DEFAULT_SETTINGS, FONTS, HAND_FONT, HAND_VARY, handVaryLabel, INKS, PAPERS, base64ToBytes, bytesToBase64, createIdGenerator, exportFileNames, exportHint,
+  DEFAULT_SETTINGS, FONTS, HAND_FONT, HAND_VARY, handVaryLabel, INKS, PAPERS, base64ToBytes, bytesToBase64, exportFileNames, exportHint,
   pageCountLabel, parseHostMessage, rangeLabel, stepValue, type RangeId, type HostMessage, type HostRequest, type InkSettings,
 } from "./protocol";
 
 const SAMPLE = "# Lernzettel Biologie\n\nDie Zelle ist die kleinste Einheit des Lebens.\n- Zellkern: enthält die DNA\n- Mitochondrien: Kraftwerke der Zelle\n- Ribosomen: bauen Proteine";
-const nextId = createIdGenerator("gn");
 
 type Req = HostRequest extends infer T ? (T extends { id: string } ? Omit<T, "id"> : never) : never;
-type Pending = { resolve: (m: HostMessage) => void; reject: (e: Error) => void };
 
 export default function GoodnotesScreen() {
   const { colors } = usePensumTheme();
-  const web = useRef<WebView<unknown>>(null);
-  const pending = useRef(new Map<string, Pending>());
-  const [ready, setReady] = useState(false);
+  const [epoch, setEpoch] = useState(0);
   const [text, setText] = useState(SAMPLE);
   const [fileName, setFileName] = useState("Lernzettel");
   const [settings, setSettings] = useState<InkSettings>(DEFAULT_SETTINGS);
@@ -38,6 +36,10 @@ export default function GoodnotesScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [template, setTemplate] = useState<string | null>(null);
+  // Vorlage merken: stürzt die WebView ab, ist sie in der Engine weg und wird nach dem Neustart erneut geladen
+  const templateRef = useRef<{ name: string; base64: string } | null>(null);
+  const giveUp = useCallback(() => setError(ENGINE_GIVEUP_MESSAGE), []);
+  const { web, ready, setReady, instance, getQueue, request, handleTerminated } = useWebViewChannel({ idPrefix: "gn", onGiveUp: giveUp });
 
   // Übergabe aus „Abschreiben“ (einmal lesen, danach leer)
   useEffect(() => {
@@ -45,28 +47,36 @@ export default function GoodnotesScreen() {
     if (h) { setText(h.text); setFileName(h.name); setNotice("Text aus „Abschreiben“ übernommen."); }
   }, []);
 
-  const call = useCallback((req: Req): Promise<HostMessage> => {
-    const id = nextId();
-    return new Promise((resolve, reject) => {
-      pending.current.set(id, { resolve, reject });
-      web.current?.postMessage(JSON.stringify({ ...req, id }));
-    });
-  }, []);
+  // Zeitlimit (Export 60 s, sonst 20 s) und Abbruch bei Absturz/Unmount stecken in der Queue (request-queue.ts)
+  const call = useCallback((req: Req): Promise<HostMessage> => request(req) as Promise<HostMessage>, [request]);
 
   const onMessage = useCallback((e: WebViewMessageEvent) => {
     const m = parseHostMessage(e.nativeEvent.data);
     if (!m) return;
     if (m.type === "ready") { setReady(true); return; }
-    const p = pending.current.get(m.id);
-    if (!p) return;
-    pending.current.delete(m.id);
-    if (m.type === "error") p.reject(new Error(m.message)); else p.resolve(m);
-  }, []);
+    const q = getQueue();
+    if (m.type === "error") q.reject(m.id, new Error(m.message)); else q.resolve(m.id, m);
+  }, [getQueue, setReady]);
 
   const say = useMemo(() => ({ notice: (t: string) => { setNotice(t); setError(null); }, error: (t: string) => setError(t) }), []);
   const hand = useHand(call, ready, say);
   // Ohne Handschrift darf sie nicht ausgewählt bleiben (Web: selectFont("Caveat"))
   useEffect(() => { if (hand.loaded && !hand.count && settings.font === HAND_FONT) setSettings((s) => ({ ...s, font: "Caveat", handVary: 0 })); }, [hand.loaded, hand.count, settings.font]);
+
+  // Nach (Neu-)Start der Engine: gemerkte Vorlage wieder laden, danach Vorschau neu rendern
+  useEffect(() => {
+    if (!ready) return;
+    let stale = false;
+    (async () => {
+      const t = templateRef.current;
+      if (t) {
+        try { await call({ type: "template", name: t.name, base64: t.base64 }); }
+        catch (e) { if (!stale) { templateRef.current = null; setTemplate(null); setError(e instanceof Error ? e.message : "Die Vorlage konnte nicht neu geladen werden."); } }
+      }
+      if (!stale) setEpoch((n) => n + 1);
+    })();
+    return () => { stale = true; };
+  }, [ready, call]);
 
   // Vorschau neu rendern (mit kurzer Verzögerung wie im Web)
   useEffect(() => {
@@ -79,7 +89,7 @@ export default function GoodnotesScreen() {
       } catch (e) { if (!stale) setError(e instanceof Error ? e.message : "Die Vorschau konnte nicht erstellt werden."); }
     }, 250);
     return () => { stale = true; clearTimeout(t); };
-  }, [ready, text, settings, template, hand.packed, call]);
+  }, [ready, epoch, text, settings, template, hand.packed, call]);
 
   const patch = (p: Partial<InkSettings>) => setSettings((s) => ({ ...s, ...p }));
 
@@ -88,18 +98,21 @@ export default function GoodnotesScreen() {
       const r = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
       const asset = r.canceled ? null : r.assets[0];
       if (!asset) return;
-      const bytes = await new File(asset.uri).bytes();
-      const res = await call({ type: "template", name: asset.name, base64: bytesToBase64(bytes) });
-      if (res.type === "template-ok") { setTemplate(asset.name); setNotice("Eigene Vorlage geladen."); }
-    } catch (e) { setTemplate(null); setError(e instanceof Error ? e.message : "Datei konnte nicht gelesen werden."); }
+      const picked = new File(asset.uri);
+      let base64: string;
+      try { base64 = bytesToBase64(await picked.bytes()); } finally { deleteQuietly(picked); } // Kopie im Cache wird nicht mehr gebraucht
+      const res = await call({ type: "template", name: asset.name, base64 });
+      if (res.type === "template-ok") { templateRef.current = { name: asset.name, base64 }; setTemplate(asset.name); setNotice("Eigene Vorlage geladen."); }
+    } catch (e) { templateRef.current = null; setTemplate(null); setError(e instanceof Error ? e.message : "Datei konnte nicht gelesen werden."); }
   }
   async function dropTemplate() {
-    try { await call({ type: "clear-template" }); setTemplate(null); } catch (e) { setError(e instanceof Error ? e.message : "Vorlage konnte nicht entfernt werden."); }
+    try { await call({ type: "clear-template" }); templateRef.current = null; setTemplate(null); } catch (e) { setError(e instanceof Error ? e.message : "Vorlage konnte nicht entfernt werden."); }
   }
 
   async function exportAs(kind: "pdf" | "goodnotes") {
     if (!pages.length) { setError("Es gibt noch nichts zum Exportieren."); return; }
     setBusy(kind); setError(null); setNotice(null);
+    const made: File[] = [];
     try {
       const res = await call({ type: kind === "pdf" ? "export-pdf" : "export-goodnotes" });
       if (res.type !== "exported") throw new Error("Unerwartete Antwort der Engine.");
@@ -108,6 +121,7 @@ export default function GoodnotesScreen() {
         const file = new File(Paths.cache, names[i] ?? `Notiz-${i + 1}.${kind === "pdf" ? "pdf" : "goodnotes"}`);
         if (file.exists) file.delete();
         file.create();
+        made.push(file);
         await file.write(base64ToBytes(res.files[i] ?? ""));
         if (!(await Sharing.isAvailableAsync())) throw new Error("Teilen ist auf diesem Gerät nicht verfügbar.");
         await Sharing.shareAsync(file.uri, {
@@ -115,10 +129,11 @@ export default function GoodnotesScreen() {
           UTI: kind === "pdf" ? "com.adobe.pdf" : undefined,
           dialogTitle: names[i],
         });
+        deleteQuietly(file); // nach dem Teilen nicht im Cache liegen lassen; ein Fehler beim Löschen stört das Teilen nicht
       }
       setNotice(exportHint(kind, res.files.length));
     } catch (e) { setError(e instanceof Error ? e.message : "Der Export ist fehlgeschlagen."); }
-    finally { setBusy(null); }
+    finally { for (const f of made) deleteQuietly(f); setBusy(null); }
   }
 
   const chip = (label: string, on: boolean, onPress: () => void, extra?: object) => (
@@ -144,8 +159,9 @@ export default function GoodnotesScreen() {
     <Screen title="Goodnotes-Tool." description="Getippter Text wird zu Handschrift. Export als .goodnotes-Datei oder PDF, alles direkt auf deinem Gerät." navigationTitle="Goodnotes-Tool">
       {/* Engine: unsichtbar, läuft komplett offline */}
       <View style={styles.hidden} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <WebView<unknown> ref={web} originWhitelist={["about:*", "data:*"]} source={{ html: GOODNOTES_HOST_HTML, baseUrl: "about:blank" }}
+        <WebView<unknown> key={instance} ref={web} originWhitelist={["about:*", "data:*"]} source={{ html: GOODNOTES_HOST_HTML, baseUrl: "about:blank" }}
           onMessage={onMessage} javaScriptEnabled domStorageEnabled={false} allowFileAccess={false} setSupportMultipleWindows={false}
+          onContentProcessDidTerminate={handleTerminated} onRenderProcessGone={handleTerminated}
           onError={() => setError("Die Schreib-Engine konnte nicht gestartet werden.")} />
       </View>
 
