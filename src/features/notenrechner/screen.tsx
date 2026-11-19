@@ -1,10 +1,10 @@
 /* Notenrechner – Bildschirm (Fassung B-1, gebaut auf useNotenrechner.ts und components/*). Pro Fach wird eine Zeugnisnote eingetragen,
  * daraus entsteht der Zeugnisdurchschnitt.
- * Web-Quelle: tools/notenrechner/{index.html,notenrechner.js} (Pensum, Web-Commit 770dbe4). Zustand: useNotenrechner.ts, Logik: model.ts/ui-model.ts.
- * Einbinden: app/tools/notenrechner.tsx → `export { default } from "../../src/features/notenrechner/screen-b1";` */
+ * Web-Quelle: tools/notenrechner/{index.html,notenrechner.js,notenrechner.css} (Pensum, Web-Commit 770dbe4). Zustand: useNotenrechner.ts, Logik: model.ts/ui-model.ts.
+ * Einbinden: app/tools/notenrechner.tsx → `export { default } from "../../src/features/notenrechner/screen";` */
 import { useRouter } from "expo-router";
-import { Platform, ScrollView, StyleSheet, View } from "react-native";
-import { AppText, Button, EmptyState, ErrorState, LoadingState, Screen } from "../../ui";
+import { StyleSheet, View } from "react-native";
+import { AppText, Button, Card, ErrorState, LoadingState, Panel, Screen } from "../../ui";
 import { spacing } from "../../theme";
 import { SYSTEMS } from "./core";
 import { AddSubject, Suggestions } from "./components/AddSubject";
@@ -40,60 +40,72 @@ export default function NotenrechnerScreen() {
         <Summary summary={n.summary} />
         <Converter />
         <View style={styles.section}>
-          <AppText variant="section" accessibilityRole="header">Deine Zeugnisnoten.</AppText>
+          <AppText variant="h3" accessibilityRole="header">Deine Zeugnisnoten.</AppText>
           {n.subjects.length === 0 ? (
-            <EmptyState
-              title="Noch keine Fächer."
-              message={`Für das Schuljahr ${n.view.schoolYear} gibt es noch kein Fach. Nimm die üblichen Schulfächer oder leg unten eigene an.`}
-              action={<Button title="Standardfächer einfügen" onPress={n.seedDefaults} />}
-            />
-          ) : n.subjects.map((s) => (
-            <SubjectRow
-              key={`${s.id}|${n.view.system}|${n.view.half}|${n.version}`}
-              subject={s}
-              initialValue={n.fieldValue(s.id)}
-              unit={unit}
-              error={n.errors[s.id]}
-              onRename={(text) => n.renameSubject(s.id, text)}
-              onGradeText={(text) => n.setGradeText(s.id, text)}
-              onRemove={() => { void n.removeSubject(s.id); }}
-              onEditing={n.setEditing}
-            />
-          ))}
-          <AddSubject onAdd={n.addSubject} />
-          <Suggestions names={n.suggestions} onPick={n.addSuggestion} />
+            <Panel style={styles.empty}>
+              <AppText variant="h4" accessibilityRole="header" style={styles.center}>Noch keine Fächer.</AppText>
+              <AppText variant="bodySm" tone="muted" style={styles.center}>
+                {`Für das Schuljahr ${n.view.schoolYear} gibt es noch kein Fach. Nimm die üblichen Schulfächer oder leg unten eigene an.`}
+              </AppText>
+              <Button title="Standardfächer einfügen" size="sm" onPress={n.seedDefaults} />
+            </Panel>
+          ) : (
+            <Card style={styles.list}>
+              {n.subjects.map((s, index) => (
+                <SubjectRow
+                  key={`${s.id}|${n.view.system}|${n.view.half}|${n.version}`}
+                  subject={s}
+                  initialValue={n.fieldValue(s.id)}
+                  unit={unit}
+                  error={n.errors[s.id]}
+                  divider={index > 0}
+                  onRename={(text) => n.renameSubject(s.id, text)}
+                  onGradeText={(text) => n.setGradeText(s.id, text)}
+                  onRemove={() => { void n.removeSubject(s.id); }}
+                  onEditing={n.setEditing}
+                />
+              ))}
+            </Card>
+          )}
+          <View style={styles.add}>
+            <AddSubject onAdd={n.addSubject} />
+          </View>
+          {n.suggestions.length ? (
+            <View style={styles.suggest}>
+              <Suggestions names={n.suggestions} onPick={n.addSuggestion} />
+            </View>
+          ) : null}
         </View>
       </>
     );
   })();
 
   return (
-    <Screen navigationTitle="Notenrechner" scroll={false} contentStyle={styles.screen}>
-      <View style={styles.fill}>
-        <ScrollView
-          style={styles.fill}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          automaticallyAdjustKeyboardInsets
-          contentInsetAdjustmentBehavior="automatic"
-        >
-          <View style={styles.intro}>
-            <AppText variant="title" accessibilityRole="header">Notenrechner.</AppText>
-            <AppText tone="muted">Trag pro Fach deine Zeugnisnote ein. Den Zeugnisdurchschnitt siehst du sofort.</AppText>
-          </View>
-          {body}
-        </ScrollView>
-        <Toast toast={n.toast} onDismiss={n.hideToast} />
-      </View>
-    </Screen>
+    <View style={styles.root}>
+      <Screen
+        title="Notenrechner."
+        navigationTitle="Notenrechner"
+        description="Trag pro Fach deine Zeugnisnote ein. Den Zeugnisdurchschnitt siehst du sofort."
+        contentStyle={styles.page}
+      >
+        {body}
+      </Screen>
+      <Toast toast={n.toast} onDismiss={n.hideToast} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { padding: 0, gap: 0, maxWidth: 760 },
-  fill: { flex: 1 },
-  content: { width: "100%", maxWidth: 760, alignSelf: "center", padding: spacing.lg, paddingBottom: 96, gap: spacing.lg },
-  intro: { gap: spacing.sm, paddingVertical: spacing.md },
-  section: { gap: spacing.md },
+  root: { flex: 1 },
+  /** Platz unter dem Inhalt, damit der Hinweis (Toast) nichts verdeckt */
+  page: { paddingBottom: 96 },
+  /** Web `.nr-subjects-section { margin-top: 48px }`: 16 liefert schon der Seitenabstand, 32 kommen dazu */
+  section: { marginTop: spacing.xxl },
+  /** Web `.nr-subjects`: Karte mit Innenabstand 8 / 16, 24 unter der Überschrift */
+  list: { marginTop: spacing.xl, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, gap: 0 },
+  /** Web `.nr-empty`: zentriert, Innenabstand 48 / 16 */
+  empty: { marginTop: spacing.xl, alignItems: "center", paddingVertical: spacing.xxxl, paddingHorizontal: spacing.lg, gap: spacing.sm },
+  center: { textAlign: "center" },
+  add: { marginTop: spacing.xl },
+  suggest: { marginTop: spacing.lg },
 });

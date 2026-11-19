@@ -1,14 +1,14 @@
-/* Planer – einklappbarer Bereich („Erledigt (n)“, „Vergangene Klausuren (n)“; Web: <details>). */
+/* Planer – einklappbarer Bereich („Erledigt (n)“, „Vergangene Klausuren (n)“; Web: details.pl-details, getönt, „+“ / „–“ rechts). */
 import { useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import { AppText } from "../../../ui";
-import { radius, spacing, usePensumTheme } from "../../../theme";
+import { AppText, Panel } from "../../../ui";
+import { spacing } from "../../../theme";
 
 export function Disclosure({ title, children }: { title: string; children: ReactNode }) {
-  const { colors } = usePensumTheme();
   const [open, setOpen] = useState(false);
   return (
-    <View style={[styles.box, { backgroundColor: colors.surface }]}>
+    // Wie im Web liegen die Zeilen darin als weiße Karten auf der Tönung; Schaltflächen „soft“ werden dort weiß (TintContext des Panels).
+    <Panel style={styles.box}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={title}
@@ -16,17 +16,17 @@ export function Disclosure({ title, children }: { title: string; children: React
         onPress={() => setOpen((o) => !o)}
         style={styles.head}
       >
-        <AppText variant="label" style={styles.title}>{title}</AppText>
-        <AppText variant="section" accessible={false}>{open ? "–" : "+"}</AppText>
+        <AppText variant="link" style={styles.title}>{title}</AppText>
+        <AppText variant="h4" accessible={false}>{open ? "–" : "+"}</AppText>
       </Pressable>
       {open ? <View style={styles.body}>{children}</View> : null}
-    </View>
+    </Panel>
   );
 }
 
 const styles = StyleSheet.create({
-  box: { borderRadius: radius.card, borderCurve: "continuous" },
-  head: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
+  box: { padding: 0, gap: 0 },
+  head: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
   title: { flexShrink: 1 },
-  body: { gap: spacing.sm, paddingHorizontal: spacing.sm, paddingBottom: spacing.sm },
+  body: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
 });

@@ -1,4 +1,4 @@
-/* Notenrechner – Umrechnung Note ↔ Punkte (Web: .nr-converter, wireConverter). Beim Tippen füllt sich das andere Feld. */
+/* Notenrechner – Umrechnung Note ↔ Punkte (Web: section.card.nr-converter, wireConverter). Beim Tippen füllt sich das andere Feld. */
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Card, Field } from "../../../ui";
@@ -23,9 +23,9 @@ export function Converter() {
   };
 
   return (
-    <Card accessibilityLabel="Umrechnung">
-      <AppText variant="section" accessibilityRole="header">Umrechnung.</AppText>
-      <AppText variant="caption" tone="muted">Note und Punkte rechnen sich gegenseitig um.</AppText>
+    <Card accessibilityLabel="Umrechnung" style={styles.card}>
+      <AppText variant="h4" accessibilityRole="header">Umrechnung.</AppText>
+      <AppText variant="bodySm" tone="muted">Note und Punkte rechnen sich gegenseitig um.</AppText>
       <View style={styles.row}>
         <View style={styles.cell}>
           <Field
@@ -37,9 +37,12 @@ export function Converter() {
             keyboardType="numbers-and-punctuation"
             autoCorrect={false}
             autoComplete="off"
+            style={styles.tabular}
           />
         </View>
-        <AppText tone="muted" accessibilityElementsHidden importantForAccessibility="no" style={styles.eq}>≙</AppText>
+        <View accessible={false} importantForAccessibility="no-hide-descendants" style={styles.eq}>
+          <AppText variant="link">≙</AppText>
+        </View>
         <View style={styles.cell}>
           <Field
             label="Punkte (0–15)"
@@ -50,6 +53,7 @@ export function Converter() {
             keyboardType="numbers-and-punctuation"
             autoCorrect={false}
             autoComplete="off"
+            style={styles.tabular}
           />
         </View>
       </View>
@@ -58,7 +62,10 @@ export function Converter() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  card: { gap: spacing.sm },
+  row: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, marginTop: spacing.sm },
   cell: { flex: 1 },
-  eq: { paddingTop: 36, fontSize: 20 },
+  tabular: { fontVariant: ["tabular-nums"] },
+  /** Höhe des Labels (20) + Abstand (8), dann auf Feldhöhe (48) zentriert wie Web `.nr-converter-eq` */
+  eq: { marginTop: 28, height: 48, justifyContent: "center" },
 });

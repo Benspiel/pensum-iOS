@@ -1,6 +1,7 @@
-/* Planer – antippbarer Chip (Fach-Vorschläge, Stapel-Auswahl). */
+/* Planer – antippbarer Chip (Fach-Vorschläge, Stapel-Auswahl). Optik und Verhalten wie der gemeinsame `Chip` (src/ui);
+ * er kennt aber keine Radio-Rolle. Die Stapel-Auswahl ist eine Einzelauswahl und braucht sie für VoiceOver, daher dort ein eigener Pressable. */
 import { Pressable, StyleSheet } from "react-native";
-import { AppText } from "../../../ui";
+import { AppText, Chip as SharedChip } from "../../../ui";
 import { radius, spacing, usePensumTheme } from "../../../theme";
 
 export function Chip({ title, onPress, selected, accessibilityLabel, radio }: {
@@ -12,19 +13,23 @@ export function Chip({ title, onPress, selected, accessibilityLabel, radio }: {
   radio?: boolean;
 }) {
   const { colors } = usePensumTheme();
+  if (!radio) return <SharedChip label={title} selected={selected} onPress={onPress} accessibilityLabel={accessibilityLabel} />;
   return (
     <Pressable
-      accessibilityRole={radio ? "radio" : "button"}
+      accessibilityRole="radio"
       accessibilityLabel={accessibilityLabel ?? title}
-      accessibilityState={radio ? { selected: !!selected, checked: !!selected } : { selected: !!selected }}
+      accessibilityState={{ selected: !!selected, checked: !!selected }}
       onPress={onPress}
-      style={({ pressed }) => [styles.chip, { backgroundColor: selected ? colors.ink : colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+      style={({ pressed }) => [
+        styles.chip,
+        { backgroundColor: selected ? (pressed ? colors.inkSoft : colors.ink) : pressed ? colors.border : colors.surface },
+      ]}
     >
-      <AppText variant="label" style={{ color: selected ? colors.onPrimary : colors.ink }}>{title}</AppText>
+      <AppText variant="bodySm" style={{ color: selected ? colors.onPrimary : colors.ink }}>{title}</AppText>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  chip: { minHeight: 44, maxWidth: "100%", paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
+  chip: { minHeight: 44, maxWidth: "100%", paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
 });

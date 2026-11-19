@@ -3,13 +3,12 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
-import { Button, ErrorState, LoadingState, Screen } from "../../ui";
+import { ErrorState, LoadingState, Screen, Segmented } from "../../ui";
 import { spacing } from "../../theme";
 import type { PlanItem } from "./core";
 import { ExamList } from "./components/ExamList";
 import { ItemDialog } from "./components/ItemDialog";
 import { StatsHeader } from "./components/StatsHeader";
-import { Tabs } from "./components/Tabs";
 import { TaskList } from "./components/TaskList";
 import { ToastHost, useToast } from "./components/Toast";
 import { usePlanerController } from "./controller";
@@ -18,7 +17,8 @@ import {
   TEXT, headerStats, newButtonLabel, openEditDialog, openNewDialog, tabTitles, type DialogState, type FormFields, type Tab,
 } from "./model";
 
-const INTRO = { title: "Planer.", navigationTitle: "Planer" } as const;
+/** Im Web steht der Titel „Planer.“ im Kopf-Panel (`StatsHeader`); bei Laden/Fehler gibt es dort keinen Kopf, daher dann als Seitenüberschrift. */
+const TITLE = "Planer.";
 
 export default function PlanerScreen() {
   const { toast, show } = useToast();
@@ -32,6 +32,7 @@ export default function PlanerScreen() {
   const titles = useMemo(() => tabTitles(items, today), [items, today]);
 
   let body;
+  let ready = false;
   if (p.session.status === "error") {
     body = <ErrorState message="Dein Konto konnte nicht geprüft werden. Versuche es noch einmal." onRetry={() => { void p.refreshSession(); }} retryLabel="Neu laden" />;
   } else if (p.phase === "loading") {
@@ -39,6 +40,7 @@ export default function PlanerScreen() {
   } else if (p.phase === "error") {
     body = <ErrorState title="Planer nicht geladen" message="Dein Planer konnte nicht geladen werden. Prüfe deine Verbindung und versuche es noch einmal." onRetry={p.reload} retryLabel="Neu laden" />;
   } else {
+    ready = true;
     const editing = dialog?.itemId ? items.find((i) => i.id === dialog.itemId) ?? null : null;
 
     const askDelete = (item: PlanItem) => {
@@ -59,9 +61,14 @@ export default function PlanerScreen() {
 
     body = (
       <>
-        <StatsHeader stats={stats} account={p.account} status={p.saveStatus} />
-        <Tabs value={tab} titles={titles} onChange={setTab} />
-        <Button title={newButtonLabel(tab)} onPress={() => setDialog(openNewDialog(tab))} />
+        <StatsHeader stats={stats} account={p.account} status={p.saveStatus} newLabel={newButtonLabel(tab)} onNew={() => setDialog(openNewDialog(tab))} />
+        <Segmented
+          role="tablist"
+          label="Bereiche"
+          options={[{ id: "task", label: titles.task }, { id: "exam", label: titles.exam }]}
+          value={tab}
+          onChange={setTab}
+        />
         {tab === "task" ? (
           <TaskList
             items={items}
@@ -101,7 +108,7 @@ export default function PlanerScreen() {
 
   return (
     <View style={styles.root}>
-      <Screen {...INTRO} contentStyle={styles.page}>{body}</Screen>
+      <Screen navigationTitle="Planer" title={ready ? undefined : TITLE} contentStyle={styles.page}>{body}</Screen>
       <ToastHost toast={toast} />
     </View>
   );
@@ -109,5 +116,6 @@ export default function PlanerScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  page: { gap: spacing.lg },
+  /** Platz unter dem Inhalt, damit der Hinweis (Toast) nichts verdeckt */
+  page: { gap: spacing.lg, paddingBottom: 96 },
 });

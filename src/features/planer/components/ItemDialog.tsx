@@ -1,6 +1,6 @@
 /* Planer – Dialog „Neue Hausaufgabe / Klausur“ und „… bearbeiten“ (Web: itemDialog). Die Prüfung steckt in model.ts → validateForm. */
 import { useState } from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { AppText, Button, Field } from "../../../ui";
 import { spacing, usePensumTheme } from "../../../theme";
 import type { ItemKind, PlanItem } from "../core";
@@ -11,6 +11,8 @@ import {
 } from "../model";
 import { Chip } from "./Chip";
 import { DateField } from "./DateField";
+import { FormMessage } from "./FormMessage";
+import { IconButton } from "./IconButton";
 
 export function ItemDialog({ kind, item, items, decks, today, onClose, onSubmit }: {
   kind: ItemKind;
@@ -44,10 +46,10 @@ export function ItemDialog({ kind, item, items, decks, today, onClose, onSubmit 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={[styles.flex, { backgroundColor: colors.canvas }]}>
         <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <View style={styles.head}>
-            <AppText variant="title" accessibilityRole="header" style={styles.headTitle}>{dialogTitle(kind, creating)}</AppText>
-            <Pressable accessibilityRole="button" accessibilityLabel="Schließen" onPress={onClose} style={styles.close}>
-              <AppText variant="label" tone="accent" accessible={false}>Schließen</AppText>
-            </Pressable>
+            <AppText variant="h3" accessibilityRole="header" style={styles.headTitle}>{dialogTitle(kind, creating)}</AppText>
+            <View style={styles.close}>
+              <IconButton symbol="xmark" fallback="✕" label="Schließen" onPress={onClose} />
+            </View>
           </View>
 
           <Field
@@ -90,7 +92,7 @@ export function ItemDialog({ kind, item, items, decks, today, onClose, onSubmit 
 
           {kind === "exam" ? (
             <View style={styles.group}>
-              <AppText variant="label">{labels.deck}</AppText>
+              <AppText variant="fieldLabel">{labels.deck}</AppText>
               <View style={styles.wrap} accessibilityRole="radiogroup" accessibilityLabel={labels.deck}>
                 {options.map((o) => (
                   <Chip key={o.id || "none"} radio title={o.name} accessibilityLabel={o.id ? `Stapel ${o.name}` : "Keiner"} selected={form.deckId === o.id} onPress={() => set({ deckId: o.id })} />
@@ -100,7 +102,7 @@ export function ItemDialog({ kind, item, items, decks, today, onClose, onSubmit 
             </View>
           ) : null}
 
-          {errors.form ? <AppText tone="danger" accessibilityRole="alert">{errors.form}</AppText> : null}
+          {errors.form ? <FormMessage boxed text={errors.form} /> : null}
           <Button title={labels.submit(creating)} onPress={submit} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -110,10 +112,12 @@ export function ItemDialog({ kind, item, items, decks, today, onClose, onSubmit 
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { padding: spacing.xl, gap: spacing.lg },
-  head: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.md },
-  headTitle: { flex: 1 },
-  close: { minHeight: 44, minWidth: 44, justifyContent: "center", alignItems: "flex-end" },
+  /** Web `.modal-body`: Innenabstand 24, Abstand zwischen den Feldern */
+  content: { padding: spacing.xl, gap: spacing.xl },
+  head: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.lg },
+  headTitle: { flex: 1, paddingTop: spacing.xs },
+  /** Web `.modal-head .icon-btn { margin: -8px -8px 0 0 }` */
+  close: { marginTop: -spacing.sm, marginRight: -spacing.sm },
   group: { gap: spacing.sm },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
 });

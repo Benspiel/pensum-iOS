@@ -1,11 +1,13 @@
-/* Planer – Tab „Klausuren“: Karten mit Countdown, Link zu Karteikarten, Leerzustand, vergangene Klausuren. */
-import { Pressable, StyleSheet, View } from "react-native";
-import { AppText, Button, Card, EmptyState } from "../../../ui";
+/* Planer – Tab „Klausuren“: Karten mit Countdown, Link zu Karteikarten, Leerzustand, vergangene Klausuren (Web: .pl-exam, .pl-count, .pl-empty). */
+import { StyleSheet, View } from "react-native";
+import { AppText, Badge, Button, Card, TintContext } from "../../../ui";
 import { radius, spacing, usePensumTheme } from "../../../theme";
 import { splitExams, type PlanItem } from "../core";
 import { resolveDeck, type DeckSummary } from "../links";
 import { EXAM_EMPTY, examCardModel } from "../model";
 import { Disclosure } from "./Disclosure";
+import { Empty } from "./Empty";
+import { IconButton } from "./IconButton";
 
 function ExamCard({ exam, today, decks, onOpenDeck, onEdit, onDelete }: {
   exam: PlanItem; today: string; decks: readonly DeckSummary[];
@@ -17,39 +19,33 @@ function ExamCard({ exam, today, decks, onOpenDeck, onEdit, onDelete }: {
   const hot = m.state === "soon" || m.state === "today";
   const fg = hot ? colors.onPrimary : colors.ink;
   return (
-    <Card style={styles.card}>
-      <View style={styles.top}>
+    <TintContext.Provider value={false}>
+      <Card style={styles.card}>
         <View
           accessible
           accessibilityLabel={`${m.big} ${m.small}`}
           style={[styles.count, { backgroundColor: hot ? colors.ink : colors.surface, opacity: m.state === "past" ? 0.6 : 1 }]}
         >
-          <AppText variant="section" style={[{ color: fg }, m.longBig && styles.longBig]} numberOfLines={1} adjustsFontSizeToFit>{m.big}</AppText>
-          <AppText variant="caption" style={{ color: fg }} numberOfLines={2}>{m.small}</AppText>
+          <AppText variant="h3" style={[styles.big, { color: fg }, m.longBig && styles.longBig]} numberOfLines={1} adjustsFontSizeToFit>{m.big}</AppText>
+          <AppText variant="caption" style={{ color: hot ? colors.onPrimary : colors.muted, opacity: hot ? 0.8 : 1 }} numberOfLines={2}>{m.small}</AppText>
         </View>
         <View style={styles.main}>
-          <AppText variant="section">{exam.title}</AppText>
+          <AppText variant="link">{exam.title}</AppText>
           <View style={styles.meta}>
-            {exam.subject ? (
-              <View style={[styles.chip, { backgroundColor: colors.surface }]}>
-                <AppText variant="caption" tone="muted">{exam.subject}</AppText>
-              </View>
-            ) : null}
-            <AppText variant="caption" tone="muted">{m.dateText}</AppText>
+            {exam.subject ? <Badge label={exam.subject} style={styles.badge} /> : null}
+            <AppText variant="caption" style={[styles.small, { color: colors.mutedOnCanvas }]}>{m.dateText}</AppText>
           </View>
-          {exam.note ? <AppText variant="caption" tone="muted">{exam.note}</AppText> : null}
+          {exam.note ? <AppText variant="caption" style={[styles.small, { color: colors.mutedOnCanvas }]}>{exam.note}</AppText> : null}
+          <View style={styles.actions}>
+            {deck ? <Button title="Karteikarten lernen" size="sm" accessibilityHint={`Öffnet den Stapel ${deck.name}`} onPress={() => onOpenDeck(deck.id)} /> : null}
+            <View style={styles.icons}>
+              <IconButton symbol="pencil" fallback="✎" label={`Bearbeiten: ${exam.title}`} onPress={onEdit} />
+              <IconButton symbol="trash" fallback="✕" label={`Löschen: ${exam.title}`} hint="Destruktive Aktion" onPress={onDelete} />
+            </View>
+          </View>
         </View>
-      </View>
-      <View style={styles.actions}>
-        {deck ? <Button title="Karteikarten lernen" accessibilityHint={`Öffnet den Stapel ${deck.name}`} onPress={() => onOpenDeck(deck.id)} /> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={`Bearbeiten: ${exam.title}`} onPress={onEdit} style={styles.action}>
-          <AppText variant="label" tone="accent" accessible={false}>Bearbeiten</AppText>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Löschen: ${exam.title}`} onPress={onDelete} style={styles.action}>
-          <AppText variant="label" tone="danger" accessible={false}>Löschen</AppText>
-        </Pressable>
-      </View>
-    </Card>
+      </Card>
+    </TintContext.Provider>
   );
 }
 
@@ -63,8 +59,8 @@ export function ExamList({ items, today, decks, onNew, onOpenDeck, onEdit, onDel
   );
   return (
     <View style={styles.list}>
-      {upcoming.length ? upcoming.map(card) : (
-        <EmptyState title={EXAM_EMPTY.title} message={EXAM_EMPTY.message} action={<Button title={EXAM_EMPTY.action} onPress={onNew} />} />
+      {upcoming.length ? <View style={styles.cards}>{upcoming.map(card)}</View> : (
+        <Empty title={EXAM_EMPTY.title} message={EXAM_EMPTY.message} action={<Button title={EXAM_EMPTY.action} onPress={onNew} />} />
       )}
       {past.length ? <Disclosure title={`Vergangene Klausuren (${past.length})`}>{past.map(card)}</Disclosure> : null}
     </View>
@@ -73,13 +69,16 @@ export function ExamList({ items, today, decks, onNew, onOpenDeck, onEdit, onDel
 
 const styles = StyleSheet.create({
   list: { gap: spacing.lg },
-  card: { gap: spacing.md },
-  top: { flexDirection: "row", gap: spacing.md },
-  count: { width: 92, minHeight: 88, alignItems: "center", justifyContent: "center", gap: 2, padding: spacing.sm, borderRadius: radius.field, borderCurve: "continuous" },
-  longBig: { fontSize: 18 },
-  main: { flex: 1, minWidth: 0, gap: spacing.xs },
+  cards: { gap: spacing.md },
+  /** Web `.pl-exam`: Zähler (88 px) links, Inhalt rechts, Innenabstand 16 */
+  card: { flexDirection: "row", gap: spacing.lg, padding: spacing.lg },
+  count: { width: 88, minHeight: 88, alignSelf: "flex-start", alignItems: "center", justifyContent: "center", gap: 2, paddingHorizontal: spacing.xs, borderRadius: radius.field, borderCurve: "continuous" },
+  big: { fontSize: 30, lineHeight: 30, textAlign: "center", fontVariant: ["tabular-nums"] },
+  longBig: { fontSize: 20, lineHeight: 20 },
+  main: { flex: 1, minWidth: 0, gap: spacing.sm },
   meta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm },
-  chip: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
-  actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.md },
-  action: { minHeight: 44, minWidth: 44, justifyContent: "center", paddingHorizontal: spacing.xs },
+  badge: { minHeight: 22 },
+  small: { fontSize: 13, lineHeight: 18 },
+  actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm, marginTop: spacing.xs },
+  icons: { flexDirection: "row", marginLeft: "auto" },
 });

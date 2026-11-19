@@ -1,10 +1,18 @@
-/* Notenrechner – Speicherhinweis (Web: #storageNote mit Gast-/Konto-Text und Speicherstatus). */
-import { StyleSheet, View } from "react-native";
+/* Notenrechner – Speicherhinweis (Web: .storage-note.on-tint mit Punkt, Text, Text-Link und Speicherstatus). */
+import { Pressable, StyleSheet, View } from "react-native";
 import type { SaveStatus } from "../../shared/ports";
-import { AppText, Button } from "../../../ui";
-import { spacing, usePensumTheme } from "../../../theme";
+import { AppText, Card } from "../../../ui";
+import { radius, spacing, usePensumTheme } from "../../../theme";
 
 const STATUS_TEXT: Record<SaveStatus, string> = { saving: "Speichert …", saved: "Gespeichert", error: "Nicht gespeichert" };
+
+function TextLink({ title, onPress }: { title: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="link" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [styles.link, { opacity: pressed ? 0.6 : 1 }]}>
+      <AppText variant="bodySm" tone="muted" accessible={false} style={styles.underline}>{title}</AppText>
+    </Pressable>
+  );
+}
 
 export function StorageNote({ accountName, saveStatus, localSubjects, onLogin, onImport }: {
   /** null = Gastmodus */
@@ -16,33 +24,37 @@ export function StorageNote({ accountName, saveStatus, localSubjects, onLogin, o
   onImport: () => void;
 }) {
   const { colors } = usePensumTheme();
-  const dot = <View accessible={false} style={[styles.dot, accountName ? { backgroundColor: colors.accent } : { borderColor: colors.muted, borderWidth: 2 }]} />;
-  if (accountName === null) {
-    return (
-      <View accessibilityLiveRegion="polite" style={styles.wrap}>
-        <View style={styles.line}>
-          {dot}
-          <AppText variant="caption" style={styles.text}><AppText variant="label">Gast-Modus. </AppText>Deine Noten liegen nur auf diesem Gerät.</AppText>
-        </View>
-        <Button title="Anmelden und synchronisieren" variant="plain" onPress={onLogin} />
-      </View>
-    );
-  }
+  const dot = (
+    <View
+      accessible={false}
+      style={[styles.dot, accountName ? { backgroundColor: colors.ink } : { borderColor: colors.ink, borderWidth: 2 }]}
+    />
+  );
   return (
-    <View accessibilityLiveRegion="polite" style={styles.wrap}>
+    <Card variant="soft" accessibilityLiveRegion="polite" style={styles.note}>
       <View style={styles.line}>
         {dot}
-        <AppText variant="caption" style={styles.text}><AppText variant="label">Mit deinem Konto synchronisiert. </AppText>{`Angemeldet als ${accountName}.`}</AppText>
+        {accountName === null ? (
+          <AppText variant="bodySm" style={styles.text}><AppText variant="fieldLabel">Gast-Modus. </AppText>Deine Noten liegen nur auf diesem Gerät.</AppText>
+        ) : (
+          <AppText variant="bodySm" style={styles.text}><AppText variant="fieldLabel">Mit deinem Konto synchronisiert. </AppText>{`Angemeldet als ${accountName}.`}</AppText>
+        )}
+        {accountName === null ? <TextLink title="Anmelden und synchronisieren" onPress={onLogin} /> : null}
+        {accountName !== null && localSubjects > 0 ? <TextLink title={`Lokale Daten übernehmen (${localSubjects})`} onPress={onImport} /> : null}
+        {accountName !== null ? (
+          <AppText variant="caption" tone={saveStatus === "error" ? "default" : "muted"} style={styles.status}>{STATUS_TEXT[saveStatus]}</AppText>
+        ) : null}
       </View>
-      {localSubjects > 0 ? <Button title={`Lokale Daten übernehmen (${localSubjects})`} variant="plain" onPress={onImport} /> : null}
-      <AppText variant="caption" tone={saveStatus === "error" ? "danger" : "muted"}>{STATUS_TEXT[saveStatus]}</AppText>
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: spacing.xs, alignItems: "flex-start" },
-  line: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
-  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 5 },
-  text: { flexShrink: 1 },
+  note: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderRadius: radius.field, gap: 0 },
+  line: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.md },
+  dot: { width: 8, height: 8, borderRadius: 4, alignSelf: "flex-start", marginTop: 6 },
+  text: { flexGrow: 1, flexShrink: 1, flexBasis: 220 },
+  link: { minHeight: 44, justifyContent: "center" },
+  underline: { textDecorationLine: "underline" },
+  status: { marginLeft: "auto", fontWeight: "600" },
 });
