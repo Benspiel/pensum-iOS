@@ -23,7 +23,8 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-router',
-    'expo-secure-store',
+    'expo-font',
+    ['expo-secure-store', { faceIDPermission: false }],
     [
       'expo-image-picker',
       {
