@@ -1,0 +1,25 @@
+# Drittanbieter-Komponenten und Herkunft
+
+Alle Dateien liegen im Repository und werden mit der App ausgeliefert (kein CDN, kein Nachladen).
+
+## Goodnotes-Tool (`src/features/goodnotes/engine/`)
+
+| Datei | Herkunft | Lizenz |
+| --- | --- | --- |
+| `ink-engine.js` | Inkly (https://github.com/Benspiel/Inkly, `app.js`), Autor: Auftraggeber; aus Pensum-Web `tools/goodnotes/ink-engine.js` @ 770dbe4, Export-Logik unverändert, Kapselung als Modul | MIT (Inkly) |
+| `templates.js` | Pensum-Web `tools/goodnotes/templates.js` @ 770dbe4 (Papier-Vorlagen als Base64, aus Goodnotes-Export-Hüllen erzeugt) | eigene Arbeit des Auftraggebers; vor Veröffentlichung Rechte an den Hüllen prüfen |
+| `jszip.min.js` | JSZip 3.10.1, https://github.com/Stuk/jszip | MIT oder GPL-3.0 (Wahl: MIT) |
+| `jspdf.umd.min.js` | jsPDF, https://github.com/parallax/jsPDF | MIT |
+| `fonts/caveat-*.woff2` | Caveat, The Caveat Project Authors | SIL OFL 1.1 (`fonts/caveat-LICENSE.txt`) |
+| `fonts/kalam-*.woff2` | Kalam, Indian Type Foundry | SIL OFL 1.1 (`fonts/kalam-LICENSE.txt`) |
+| `fonts/patrick-hand-*.woff2` | Patrick Hand, Patrick Wagesreiter | SIL OFL 1.1 (`fonts/patrick-hand-LICENSE.txt`) |
+| `fonts/indie-flower-*.woff2` | Indie Flower, Kimberly Geswein | SIL OFL 1.1 (`fonts/indie-flower-LICENSE.txt`) |
+| `fonts/shadows-into-light-*.woff2` | Shadows Into Light, Kimberly Geswein | SIL OFL 1.1 (`fonts/shadows-into-light-LICENSE.txt`) |
+| `fonts/gochi-hand-*.woff2` | Gochi Hand, Huerta Tipográfica | SIL OFL 1.1 (`fonts/gochi-hand-LICENSE.txt`) |
+| `host-bridge.js` | neu, Pensum iOS | wie das App-Projekt |
+
+`src/features/goodnotes/host-html.generated.ts` wird aus diesen Dateien mit `node scripts/build-goodnotes-host.mjs` erzeugt.
+
+## Noch offen (Spiele, nicht eingebunden)
+
+GH Arcade (MIT, Phaser), Schach-Engine (`tools/spiele/chess/LICENSE`): erst bei Freischaltung der Spiele übernehmen und hier eintragen.

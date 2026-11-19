@@ -12,7 +12,7 @@ Web-Referenz: `main` bei `770dbe4e26236e4371126f5fcd2b9ea864b767d3`. Die Web-Sui
 | Aufgaben | An Tester gebunden; Foto/PDF, Seitenauswahl, Antworten, PDF- und Bildexport | Öffnet eine PDF-Seite per Core Graphics, bietet Standardschrift und einen iOS-Handschriftstil. Eigene Handschrift läuft als Textübergabe zum Goodnotes-Tool. Xcode-Gerätenachweis für das Dokumentmodul steht aus. |
 | Erklärvideos | Derzeit gesperrt | `lehrer-schmidt` fehlt im produktiven Projekt. Der App-Code enthält die Suche für die bestehende Function und eine explizite Öffnung in YouTube. |
 | KI-Chat | Nativ über Appwrite, nur für Ki-Tester, mit Foto/PDF, Klassenstufe und dauerhaftem Verlauf | Server speichert die Chatdaten. Schrittanzeige nur für frische Antworten. Markdown wird vereinfacht angezeigt. Tool mit synthetischem Ki-Tester-Konto abnehmen. |
-| Team | Nativ, nur für Admins und mit serverseitiger Team-Prüfung | Statistik und Nutzungsübersicht als native Listen. Betriebsdaten nur mit freigegebenem Admin-Testzugriff prüfen. |
+| Team | Nativ, nur für Admins und mit serverseitiger Team-Prüfung | Statistik und Nutzungsübersicht als native Listen mit bestehenden Backend-Zahlen. Die App erfasst in diesem Stand keine neuen Werkzeugbesuche. Betriebsdaten mit freigegebenem Admin-Testzugriff prüfen. |
 | Goodnotes-Tool | Siehe [Goodnotes- und Spiele-Plan](b-goodnotes-spiele-plan.md) und den gemeinsamen Abnahmestand | Texteingabe, Handschrift, PDF, `.goodnotes` und Übergaben separat prüfen. |
 | Spiele | Tester-Zugriff gemäß Web-Regeln | Nativen Umfang und gegebenenfalls ausdrücklich gekennzeichnete Website-Fallbacks im Geräteprotokoll festhalten. |
 
