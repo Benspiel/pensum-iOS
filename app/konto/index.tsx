@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Linking, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Keyboard, Linking, ScrollView, StyleSheet, Switch, View, useWindowDimensions } from 'react-native';
 import { account } from '../../src/backend';
 import { googleAuthEnabled } from '../../src/backend/config';
 import { PensumError, type SessionUser } from '../../src/contracts';
@@ -9,7 +9,35 @@ import {
   clearAccountContents, getAccountDevices, getGoogleIdentity, requireAccountScope, shareAccountExport,
 } from '../../src/account/management';
 import { type AccountScope, type EmailCode, useSession } from '../../src/account/session';
-import { AppText, Button, Card, ErrorState, Field, LoadingState, Screen, ThemeSelector } from '../../src/ui';
+import { AppText, Button, Card, ErrorState, Field, LoadingState, Screen, Segmented, ThemeSelector, type SegmentedOption } from '../../src/ui';
+
+const guestTabs = [
+  { id: 'login', label: 'Anmeldung' },
+  { id: 'app', label: 'App', accessibilityLabel: 'App und Rechtliches' },
+] as const;
+
+const accountTabs = [
+  { id: 'profile', label: 'Profil' },
+  { id: 'access', label: 'Zugang', accessibilityLabel: 'Zugang und Geräte' },
+  { id: 'data', label: 'Daten' },
+  { id: 'app', label: 'App', accessibilityLabel: 'App und Rechtliches' },
+] as const;
+
+function AccountTabs<T extends string>({ options, value, onChange, busy }: {
+  options: readonly SegmentedOption<T>[];
+  value: T;
+  onChange: (value: T) => void;
+  busy: boolean;
+}) {
+  const { fontScale } = useWindowDimensions();
+  const scrollable = fontScale > 1;
+  const tabs = (
+    <Segmented label="Kontobereiche" role="tablist" fill={!scrollable}
+      options={busy ? options.map((option) => ({ ...option, disabled: true })) : options}
+      value={value} onChange={onChange} />
+  );
+  return scrollable ? <ScrollView horizontal keyboardShouldPersistTaps="handled">{tabs}</ScrollView> : tabs;
+}
 
 const legalPages = [
   { title: 'Datenschutz', url: 'https://pensum-omega.vercel.app/datenschutz/' },
@@ -30,6 +58,10 @@ function LegalLinks() {
   );
 }
 
+function AppSettings() {
+  return <><ThemeSelector /><LegalLinks /></>;
+}
+
 export default function AccountScreen() {
   const { state, scope, refresh, logout } = useSession();
   if (state.status === 'loading') return <Screen title="Konto"><LoadingState title="Konto wird geprüft …" /></Screen>;
@@ -37,8 +69,7 @@ export default function AccountScreen() {
     <Screen title="Konto">
       <ErrorState message={state.error.message} onRetry={() => void refresh()} />
       <Button title="Als Gast fortfahren" variant="secondary" onPress={() => void logout({ discardUnsaved: true }).catch(() => undefined)} />
-      <ThemeSelector />
-      <LegalLinks />
+      <AppSettings />
     </Screen>
   );
   if (state.status === 'account' && scope) {
@@ -51,6 +82,7 @@ function GuestAccount() {
   const router = useRouter();
   const session = useSession();
   const action = useAccountAction();
+  const [tab, setTab] = useState<typeof guestTabs[number]['id']>('login');
   const [registering, setRegistering] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [email, setEmail] = useState('');
@@ -86,42 +118,52 @@ function GuestAccount() {
     </Screen>
   );
 
+  function selectTab(next: typeof tab) {
+    if (tab === next || action.busy) return;
+    Keyboard.dismiss();
+    setPassword('');
+    setTab(next);
+  }
+
   return (
-    <Screen title="Konto" description="Melde dich an, um deine Lerndaten auf deinen Geräten zu nutzen.">
-      <Card>
-        <AppText variant="section">{registering ? 'Konto erstellen' : 'Anmelden'}</AppText>
-        {registering ? <Field label="Name (optional)" value={name} onChangeText={setName} textContentType="name" maxLength={128} /> : null}
-        <Field label="E-Mail" value={email} onChangeText={setEmail} keyboardType="email-address"
-          textContentType="emailAddress" autoCorrect={false} autoCapitalize="none" />
-        <Field label="Passwort" value={password} onChangeText={setPassword} secureTextEntry
-          textContentType={registering ? 'newPassword' : 'password'} autoCapitalize="none" autoCorrect={false} />
-        {registering && (
-          <View style={styles.ageConfirmation}>
-            <AppText style={styles.ageLabel}>Ich bin mindestens 16 Jahre alt.</AppText>
-            <Switch accessibilityLabel="Ich bin mindestens 16 Jahre alt" value={ageConfirmed}
-              disabled={action.busy} onValueChange={setAgeConfirmed} />
-          </View>
-        )}
-        <Button title={registering ? 'Konto erstellen' : 'Anmelden'} loading={action.busy}
-          disabled={!email.trim() || password.length < (registering ? 8 : 1) || (registering && !ageConfirmed)} onPress={submit} />
-        <Button title={registering ? 'Zur Anmeldung' : 'Konto erstellen'} disabled={action.busy} variant="secondary"
-          onPress={() => { setRegistering(!registering); setAgeConfirmed(false); setPassword(''); action.reset(); }} />
-        <Button title="Passwort vergessen?" variant="plain" disabled={action.busy}
-          onPress={() => router.push('/auth/recover')} />
-        {googleAuthEnabled ? <Button title="Mit Google anmelden" variant="secondary" disabled={action.busy}
-          onPress={() => Alert.alert('Mit Google anmelden', 'Ein neues Pensum-Konto ist ab 16 Jahren möglich.', [
-            { text: 'Abbrechen', style: 'cancel' },
-            { text: 'Weiter', onPress: () => void action.run(session.signInWithGoogle) },
-          ])} /> : null}
-        <Notice notice={action.notice ?? (session.oauthError ? { error: true, message: session.oauthError.message } : null)} />
-      </Card>
-      <Card>
-        <AppText variant="section">Gastmodus</AppText>
-        <AppText tone="muted">Gastdaten werden auf diesem Gerät gespeichert.</AppText>
-        <Button title="Werkzeuge öffnen" variant="secondary" disabled={action.busy} onPress={() => router.replace('/')} />
-      </Card>
-      <ThemeSelector />
-      <LegalLinks />
+    <Screen title="Konto" description={tab === 'login' ? 'Melde dich an, um deine Lerndaten auf deinen Geräten zu nutzen.' : undefined}>
+      <AccountTabs options={guestTabs} value={tab} onChange={selectTab} busy={action.busy} />
+      {tab === 'login' ? (
+        <>
+          <Card>
+            <AppText variant="section">{registering ? 'Konto erstellen' : 'Anmelden'}</AppText>
+            {registering ? <Field label="Name (optional)" value={name} onChangeText={setName} textContentType="name" maxLength={128} /> : null}
+            <Field label="E-Mail" value={email} onChangeText={setEmail} keyboardType="email-address"
+              textContentType="emailAddress" autoCorrect={false} autoCapitalize="none" />
+            <Field label="Passwort" value={password} onChangeText={setPassword} secureTextEntry
+              textContentType={registering ? 'newPassword' : 'password'} autoCapitalize="none" autoCorrect={false} />
+            {registering && (
+              <View style={styles.ageConfirmation}>
+                <AppText style={styles.ageLabel}>Ich bin mindestens 16 Jahre alt.</AppText>
+                <Switch accessibilityLabel="Ich bin mindestens 16 Jahre alt" value={ageConfirmed}
+                  disabled={action.busy} onValueChange={setAgeConfirmed} />
+              </View>
+            )}
+            <Button title={registering ? 'Konto erstellen' : 'Anmelden'} loading={action.busy}
+              disabled={!email.trim() || password.length < (registering ? 8 : 1) || (registering && !ageConfirmed)} onPress={submit} />
+            <Button title={registering ? 'Zur Anmeldung' : 'Konto erstellen'} disabled={action.busy} variant="secondary"
+              onPress={() => { setRegistering(!registering); setAgeConfirmed(false); setPassword(''); action.reset(); }} />
+            <Button title="Passwort vergessen?" variant="plain" disabled={action.busy}
+              onPress={() => router.push('/auth/recover')} />
+            {googleAuthEnabled ? <Button title="Mit Google anmelden" variant="secondary" disabled={action.busy}
+              onPress={() => Alert.alert('Mit Google anmelden', 'Ein neues Pensum-Konto ist ab 16 Jahren möglich.', [
+                { text: 'Abbrechen', style: 'cancel' },
+                { text: 'Weiter', onPress: () => void action.run(session.signInWithGoogle) },
+              ])} /> : null}
+            <Notice notice={action.notice ?? (session.oauthError ? { error: true, message: session.oauthError.message } : null)} />
+          </Card>
+          <Card>
+            <AppText variant="section">Gastmodus</AppText>
+            <AppText tone="muted">Gastdaten werden auf diesem Gerät gespeichert.</AppText>
+            <Button title="Werkzeuge öffnen" variant="secondary" disabled={action.busy} onPress={() => router.replace('/')} />
+          </Card>
+        </>
+      ) : <AppSettings />}
     </Screen>
   );
 }
@@ -144,7 +186,17 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
   const [deletion, setDeletion] = useState('');
   const [devices, setDevices] = useState<Awaited<ReturnType<typeof getAccountDevices>> | null>(null);
   const [identity, setIdentity] = useState<Awaited<ReturnType<typeof getGoogleIdentity>> | undefined>(undefined);
+  const [tab, setTab] = useState<typeof accountTabs[number]['id']>('profile');
   const disabled = offline || action.busy;
+  function selectTab(next: typeof tab) {
+    if (next === tab || action.busy) return;
+    Keyboard.dismiss();
+    setOldPassword('');
+    setNewPassword('');
+    setDeletion('');
+    action.reset();
+    setTab(next);
+  }
   async function logout(everywhere = false) {
     try {
       await session.logout({ everywhere });
@@ -165,117 +217,129 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
 
   return (
     <Screen title="Konto" description={user.email}>
-      <Card>
-        <AppText variant="section">{user.name || 'Mein Konto'}</AppText>
-        <AppText tone="muted">{user.emailVerified ? 'E-Mail bestätigt' : 'E-Mail noch nicht bestätigt'}</AppText>
-        {offline ? (
-          <ErrorState title="Offline" message="Kontoeinstellungen brauchen eine Internetverbindung."
-            onRetry={() => void session.refresh()} />
-        ) : null}
-        {!user.emailVerified ? <Button title="Bestätigungslink senden" variant="secondary" disabled={disabled}
-          onPress={() => void action.run(session.requestEmailVerification, 'Bestätigungslink gesendet.')} /> : null}
-        <Button title="Abmelden" variant="secondary" disabled={action.busy}
-          onPress={() => void action.run(() => logout())} />
-        <Notice notice={action.notice} />
-      </Card>
-      <ThemeSelector />
-      <LegalLinks />
-      <Card>
-        <AppText variant="section">Profil</AppText>
-        <Field label="Name" value={name} onChangeText={setName} textContentType="name" maxLength={128} />
-        <Button title="Name speichern" variant="secondary" disabled={disabled || name.trim() === user.name}
-          onPress={() => void action.run(async () => {
-            requireAccountScope(scope);
-            await account.updateName({ name: name.trim() || 'Pensum' });
-            await session.refresh();
-          }, 'Name gespeichert.')} />
-      </Card>
-      <Card>
-        <AppText variant="section">Zugangsdaten</AppText>
-        <Field label="E-Mail-Adresse" value={email} onChangeText={setEmail} keyboardType="email-address"
-          autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" />
-        <Field label="Aktuelles Passwort" value={oldPassword} onChangeText={setOldPassword} secureTextEntry
-          textContentType="password" autoCapitalize="none" autoCorrect={false} />
-        <Button title="E-Mail-Adresse ändern" variant="secondary"
-          disabled={disabled || !oldPassword || !email.trim() || email.trim() === user.email}
-          onPress={() => void action.run(async () => {
-            requireAccountScope(scope);
-            await account.updateEmail({ email: email.trim(), password: oldPassword });
-            setOldPassword('');
-            await session.refresh();
-          }, 'E-Mail-Adresse geändert. Bestätige deine neue Adresse.')} />
-        <Field label="Neues Passwort" value={newPassword} onChangeText={setNewPassword} secureTextEntry
-          textContentType="newPassword" autoCapitalize="none" autoCorrect={false} />
-        <Button title="Passwort ändern" variant="secondary" disabled={disabled || !oldPassword || newPassword.length < 8}
-          onPress={() => void action.run(async () => {
-            requireAccountScope(scope);
-            await account.updatePassword({ password: newPassword, oldPassword });
-            setOldPassword('');
-            setNewPassword('');
-          }, 'Passwort geändert.')} />
-        <Button title="Google-Verbindung prüfen" variant="secondary" disabled={disabled}
-          onPress={() => void action.run(async () => { setIdentity(await getGoogleIdentity(scope)); })} />
-        {identity === null ? <AppText tone="muted">Google ist mit diesem Konto nicht verbunden.</AppText> : null}
-        {identity ? <>
-          <AppText>{identity.providerEmail || 'Google-Konto verbunden'}</AppText>
-          <Button title="Verbindung zu Google lösen" variant="secondary" disabled={disabled}
-            onPress={() => ask('Verbindung zu Google lösen?', 'Stelle sicher, dass du ein Passwort für dein Konto eingerichtet hast.', 'Verbindung lösen',
-              () => void action.run(async () => {
-                requireAccountScope(scope);
-                await account.deleteIdentity({ identityId: identity.$id });
-                setIdentity(null);
-              }, 'Google-Verbindung gelöst.'))} />
-        </> : null}
-      </Card>
-      <Card>
-        <AppText variant="section">Geräte</AppText>
-        <Button title={devices ? 'Sitzungen aktualisieren' : 'Sitzungen anzeigen'} variant="secondary" disabled={disabled}
-          onPress={() => void action.run(async () => { setDevices(await getAccountDevices(scope)); })} />
-        {devices?.map((device) => (
-          <Card key={device.$id}>
-            <AppText>{[device.clientName, device.osName].filter(Boolean).join(' · ') || 'Unbekanntes Gerät'}
-              {device.current ? ' (dieses Gerät)' : ''}</AppText>
-            <AppText variant="caption" tone="muted">{new Date(device.$createdAt).toLocaleString('de-DE')}</AppText>
-            {device.current ? null : (
-              <Button title="Sitzung beenden" variant="plain" disabled={disabled}
-                onPress={() => void action.run(async () => {
-                  requireAccountScope(scope);
-                  await account.deleteSession({ sessionId: device.$id });
-                  setDevices(await getAccountDevices(scope));
-                }, 'Sitzung beendet.')} />
-            )}
+      <AccountTabs options={accountTabs} value={tab} onChange={selectTab} busy={action.busy} />
+      {tab !== 'app' && offline && (
+        <ErrorState title="Offline" message="Kontoeinstellungen brauchen eine Internetverbindung."
+          onRetry={() => void session.refresh()} />
+      )}
+      {tab !== 'app' && <Notice notice={action.notice} />}
+      {tab === 'profile' && (
+        <>
+          <Card>
+            <AppText variant="section">{user.name || 'Mein Konto'}</AppText>
+            <AppText tone="muted">{user.emailVerified ? 'E-Mail bestätigt' : 'E-Mail noch nicht bestätigt'}</AppText>
+            {!user.emailVerified ? <Button title="Bestätigungslink senden" variant="secondary" disabled={disabled}
+              onPress={() => void action.run(session.requestEmailVerification, 'Bestätigungslink gesendet.')} /> : null}
+            <Button title="Abmelden" variant="secondary" disabled={action.busy}
+              onPress={() => void action.run(() => logout())} />
           </Card>
-        ))}
-        {devices?.some((device) => !device.current) ? (
-          <Button title="Andere Geräte abmelden" variant="secondary" disabled={disabled}
-            onPress={() => void action.run(endOtherDevices, 'Andere Geräte abgemeldet.')} />
-        ) : null}
-        <Button title="Überall abmelden" variant="secondary" disabled={disabled}
-          onPress={() => ask('Überall abmelden?', 'Alle aktiven Sitzungen dieses Kontos werden beendet.', 'Überall abmelden',
-            () => void action.run(() => logout(true)))} />
-      </Card>
-      <Card>
-        <AppText variant="section">Daten</AppText>
-        <Button title="Kontodaten als JSON teilen" variant="secondary" disabled={disabled}
-          onPress={() => void action.run(() => shareAccountExport(scope, user))} />
-        <Button title="Lerninhalte im Konto löschen" variant="danger" disabled={disabled}
-          onPress={() => ask('Lerninhalte löschen?', 'Deine Fächer, Noten, Mindmaps, Karten, Planereinträge und dein Handschrift-Profil werden gelöscht.', 'Inhalte löschen',
-            () => void action.run(() => clearAccountContents(scope), 'Lerninhalte gelöscht.'))} />
-      </Card>
-      <Card>
-        <AppText variant="section">Konto löschen</AppText>
-        <AppText tone="muted">Dein Konto und die zugehörigen Daten werden dauerhaft gelöscht.</AppText>
-        <Field label="Zur Bestätigung LÖSCHEN eingeben" value={deletion} onChangeText={setDeletion}
-          autoCapitalize="characters" maxLength={12} />
-        <Button title="Konto endgültig löschen" variant="danger"
-          disabled={disabled || deletion.trim().toUpperCase() !== 'LÖSCHEN'}
-          onPress={() => ask('Konto endgültig löschen?', 'Dein Konto und seine Daten werden endgültig gelöscht.', 'Endgültig löschen',
-            () => void action.run(async () => {
-              if (deletion.trim().toUpperCase() !== 'LÖSCHEN') throw new PensumError('invalid', 'Bestätige die Löschung.');
-              await session.deleteAccount();
-              router.replace('/');
-            }))} />
-      </Card>
+          <Card>
+            <AppText variant="section">Profil</AppText>
+            <Field label="Name" value={name} onChangeText={setName} textContentType="name" maxLength={128} />
+            <Button title="Name speichern" variant="secondary" disabled={disabled || name.trim() === user.name}
+              onPress={() => void action.run(async () => {
+                requireAccountScope(scope);
+                await account.updateName({ name: name.trim() || 'Pensum' });
+                await session.refresh();
+              }, 'Name gespeichert.')} />
+          </Card>
+        </>
+      )}
+      {tab === 'access' && (
+        <>
+          <Card>
+            <AppText variant="section">Zugangsdaten</AppText>
+            <Field label="E-Mail-Adresse" value={email} onChangeText={setEmail} keyboardType="email-address"
+              autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" />
+            <Field label="Aktuelles Passwort" value={oldPassword} onChangeText={setOldPassword} secureTextEntry
+              textContentType="password" autoCapitalize="none" autoCorrect={false} />
+            <Button title="E-Mail-Adresse ändern" variant="secondary"
+              disabled={disabled || !oldPassword || !email.trim() || email.trim() === user.email}
+              onPress={() => void action.run(async () => {
+                requireAccountScope(scope);
+                await account.updateEmail({ email: email.trim(), password: oldPassword });
+                setOldPassword('');
+                await session.refresh();
+              }, 'E-Mail-Adresse geändert. Bestätige deine neue Adresse.')} />
+            <Field label="Neues Passwort" value={newPassword} onChangeText={setNewPassword} secureTextEntry
+              textContentType="newPassword" autoCapitalize="none" autoCorrect={false} />
+            <Button title="Passwort ändern" variant="secondary" disabled={disabled || !oldPassword || newPassword.length < 8}
+              onPress={() => void action.run(async () => {
+                requireAccountScope(scope);
+                await account.updatePassword({ password: newPassword, oldPassword });
+                setOldPassword('');
+                setNewPassword('');
+              }, 'Passwort geändert.')} />
+            <Button title="Google-Verbindung prüfen" variant="secondary" disabled={disabled}
+              onPress={() => void action.run(async () => { setIdentity(await getGoogleIdentity(scope)); })} />
+            {identity === null ? <AppText tone="muted">Google ist mit diesem Konto nicht verbunden.</AppText> : null}
+            {identity ? <>
+              <AppText>{identity.providerEmail || 'Google-Konto verbunden'}</AppText>
+              <Button title="Verbindung zu Google lösen" variant="secondary" disabled={disabled}
+                onPress={() => ask('Verbindung zu Google lösen?', 'Stelle sicher, dass du ein Passwort für dein Konto eingerichtet hast.', 'Verbindung lösen',
+                  () => void action.run(async () => {
+                    requireAccountScope(scope);
+                    await account.deleteIdentity({ identityId: identity.$id });
+                    setIdentity(null);
+                  }, 'Google-Verbindung gelöst.'))} />
+            </> : null}
+          </Card>
+          <Card>
+            <AppText variant="section">Geräte</AppText>
+            <Button title={devices ? 'Sitzungen aktualisieren' : 'Sitzungen anzeigen'} variant="secondary" disabled={disabled}
+              onPress={() => void action.run(async () => { setDevices(await getAccountDevices(scope)); })} />
+            {devices?.map((device) => (
+              <Card key={device.$id}>
+                <AppText>{[device.clientName, device.osName].filter(Boolean).join(' · ') || 'Unbekanntes Gerät'}
+                  {device.current ? ' (dieses Gerät)' : ''}</AppText>
+                <AppText variant="caption" tone="muted">{new Date(device.$createdAt).toLocaleString('de-DE')}</AppText>
+                {device.current ? null : (
+                  <Button title="Sitzung beenden" variant="plain" disabled={disabled}
+                    onPress={() => void action.run(async () => {
+                      requireAccountScope(scope);
+                      await account.deleteSession({ sessionId: device.$id });
+                      setDevices(await getAccountDevices(scope));
+                    }, 'Sitzung beendet.')} />
+                )}
+              </Card>
+            ))}
+            {devices?.some((device) => !device.current) ? (
+              <Button title="Andere Geräte abmelden" variant="secondary" disabled={disabled}
+                onPress={() => void action.run(endOtherDevices, 'Andere Geräte abgemeldet.')} />
+            ) : null}
+            <Button title="Überall abmelden" variant="secondary" disabled={disabled}
+              onPress={() => ask('Überall abmelden?', 'Alle aktiven Sitzungen dieses Kontos werden beendet.', 'Überall abmelden',
+                () => void action.run(() => logout(true)))} />
+          </Card>
+        </>
+      )}
+      {tab === 'data' && (
+        <>
+          <Card>
+            <AppText variant="section">Daten</AppText>
+            <Button title="Kontodaten als JSON teilen" variant="secondary" disabled={disabled}
+              onPress={() => void action.run(() => shareAccountExport(scope, user))} />
+            <Button title="Lerninhalte im Konto löschen" variant="danger" disabled={disabled}
+              onPress={() => ask('Lerninhalte löschen?', 'Deine Fächer, Noten, Mindmaps, Karten, Planereinträge und dein Handschrift-Profil werden gelöscht.', 'Inhalte löschen',
+                () => void action.run(() => clearAccountContents(scope), 'Lerninhalte gelöscht.'))} />
+          </Card>
+          <Card>
+            <AppText variant="section">Konto löschen</AppText>
+            <AppText tone="muted">Dein Konto und die zugehörigen Daten werden dauerhaft gelöscht.</AppText>
+            <Field label="Zur Bestätigung LÖSCHEN eingeben" value={deletion} onChangeText={setDeletion}
+              autoCapitalize="characters" maxLength={12} />
+            <Button title="Konto endgültig löschen" variant="danger"
+              disabled={disabled || deletion.trim().toUpperCase() !== 'LÖSCHEN'}
+              onPress={() => ask('Konto endgültig löschen?', 'Dein Konto und seine Daten werden endgültig gelöscht.', 'Endgültig löschen',
+                () => void action.run(async () => {
+                  if (deletion.trim().toUpperCase() !== 'LÖSCHEN') throw new PensumError('invalid', 'Bestätige die Löschung.');
+                  await session.deleteAccount();
+                  router.replace('/');
+                }))} />
+          </Card>
+        </>
+      )}
+      {tab === 'app' && <AppSettings />}
     </Screen>
   );
 }
