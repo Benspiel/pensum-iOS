@@ -20,6 +20,6 @@ Alle Dateien liegen im Repository und werden mit der App ausgeliefert (kein CDN,
 
 `src/features/goodnotes/host-html.generated.ts` wird aus diesen Dateien mit `node scripts/build-goodnotes-host.mjs` erzeugt.
 
-## Noch offen (Spiele, nicht eingebunden)
+## Spiele
 
-GH Arcade (MIT, Phaser), Schach-Engine (`tools/spiele/chess/LICENSE`): erst bei Freischaltung der Spiele übernehmen und hier eintragen.
+Bewusst nicht Teil der iOS-App (Entscheidung des Auftraggebers). Es werden keine Spiele-Assets oder -Lizenzen übernommen.

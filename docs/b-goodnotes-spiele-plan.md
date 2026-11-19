@@ -1,6 +1,6 @@
-# B4 – Plan Goodnotes-Tool und Spiele (iOS)
+# B4 – Plan Goodnotes-Tool (iOS)
 
-Stand: Web `770dbe4`. Quelle: `tools/goodnotes/*`, `tools/spiele/*`, `vendor/{jszip,jspdf}`, `vendor/fonts`.
+Stand: Web `770dbe4`. Quelle: `tools/goodnotes/*`, `vendor/{jszip,jspdf}`, `vendor/fonts`.
 
 ## Goodnotes-Tool
 
@@ -21,5 +21,4 @@ Offene Prüfung: Hermes/WebView-Speicherlimit bei sehr großen Vorlagen; `docume
 
 ## Spiele
 
-Im Web ist `spiele` aktuell `soon` (ausgegraut, nicht klickbar). Die App spiegelt **denselben Veröffentlichungsstatus** („Kommt bald“), solange die Web-Registry so steht; kein Bauaufwand vor Release-Kandidat.
-Vorbereitet (später): Vier gewinnt (`connect4.js`, reine Logik, nativ portierbar), Arcade (GH Arcade, MIT, Phaser 1,3 MB) und Schach (Worker, `LICENSE` vorhanden) als gebündelte WebViews wie beim Goodnotes-Tool. Lizenzen in `THIRD-PARTY.md` aufnehmen.
+Bewusst nicht Teil der iOS-App (Entscheidung des Auftraggebers). Kein Plan, keine Assets.
