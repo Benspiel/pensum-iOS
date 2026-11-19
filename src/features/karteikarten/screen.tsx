@@ -67,6 +67,10 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
           onAddCard={(front, back) => actions.addCard(deck.id, front, back)}
           onEditCard={(card) => setDialog({ kind: "editCard", deckId: deck.id, cardId: card.id })}
           onDeleteCard={(card) => actions.deleteCard(deck.id, card.id)}
+          ki={k.ki}
+          onKiToggle={actions.kiToggle}
+          onKiAdd={() => actions.kiAdd(deck.id)}
+          onKiDiscard={actions.kiDiscard}
         />
       );
     } else if (view.name === "study") {
@@ -115,7 +119,7 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
       <View style={styles.body}>{body}</View>
 
       {dialog?.kind === "newDeck" ? (
-        <DeckDialog onSubmit={actions.createDeck} onClose={closeDialog} />
+        <DeckDialog kiTester={k.kiTester} onSubmit={actions.createDeck} onKi={(id, input) => void actions.kiGenerate(id, input)} onClose={closeDialog} />
       ) : null}
       {dialog?.kind === "editDeck" && dialogDeck ? (
         <DeckDialog deck={dialogDeck} onSubmit={(name, mode) => actions.editDeck(dialogDeck.id, name, mode)} onDelete={() => actions.deleteDeck(dialogDeck.id)} onClose={closeDialog} />

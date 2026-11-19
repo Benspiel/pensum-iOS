@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AccessibilityInfo, Alert, AppState } from "react-native";
 import { useSession } from "../../account/session";
+import { executeFunction, functionIds } from "../../backend";
+import { useAccountGuard } from "../appwrite-tools/account-scope";
 import { haptic } from "./components/haptic";
 import { useStoreDeps } from "../../storage";
 import type { DeckMode, StudyType } from "./core";
@@ -13,6 +15,10 @@ import {
   checkRound, currentCard, flipRound, gradeRound, initialView, loadingDelay, nextRound, overrideRound, restartDeck, startRound, viewReducer,
 } from "./session-model";
 import type { DeckTab, SaveStatus, View } from "./session-model";
+import { addChosen, generateCards, kiBusy, kiErrorText, kiFailed, kiLoaded, kiToggle } from "./ki/cards";
+import type { KiState } from "./ki/cards";
+import { discardKiFile, prepareKiFile } from "./ki/files";
+import type { KiFile } from "./ki/files";
 import { createCloudStore, createGuestStore } from "./store";
 import type { KarteikartenData, KarteikartenStore } from "./store";
 
@@ -29,12 +35,15 @@ export function confirmAsync({ title, text, confirm, cancel = "Abbrechen", destr
 }
 
 export interface Notice { text: string; error: boolean; id: number }
-export type ActionResult = { ok: true } | { ok: false; error: string };
+export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
+export interface KiRequest { topic: string; file: KiFile | null; count: number }
 const fail = (error: string): ActionResult => ({ ok: false, error });
 const OK: ActionResult = { ok: true };
 
 export function useKarteikarten(deckParam?: string | string[]) {
-  const { state, registerBeforeLogout } = useSession();
+  const { state, registerBeforeLogout, access } = useSession();
+  const requireAccount = useAccountGuard();
+  const kiTester = access.kiTester;
   const userId = state.status === "account" ? state.user.id : null;
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const statusRef = useRef<SaveStatus>("saved");
@@ -47,6 +56,9 @@ export function useKarteikarten(deckParam?: string | string[]) {
   const [reloadKey, setReloadKey] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [ki, setKi] = useState<KiState>(null);
+  const kiToken = useRef(0);
+  useEffect(() => () => { kiToken.current++; }, []);
 
   const dataRef = useRef<KarteikartenData>({ decks: [] });
   const storeRef = useRef<KarteikartenStore | null>(null);
@@ -185,13 +197,13 @@ export function useKarteikarten(deckParam?: string | string[]) {
     setTab: (tab: DeckTab) => dispatch({ type: "setTab", tab }),
     toDeck: () => dispatch({ type: "toDeck" }),
 
-    createDeck(name: string, mode: DeckMode): ActionResult {
+    createDeck(name: string, mode: DeckMode, withKi = false): ActionResult {
       const r = checkNewDeck(dataRef.current, { name, mode }, () => storeRef.current?.newId() ?? String(Date.now()));
       if (!r.ok) return fail(r.error);
       dataRef.current.decks.push(r.value);
       changed();
-      dispatch({ type: "openDeck", id: r.value.id, tab: "add" });
-      return OK;
+      dispatch({ type: "openDeck", id: r.value.id, tab: withKi ? "cards" : "add" });
+      return { ok: true, id: r.value.id };
     },
     editDeck(id: string, name: string, mode: DeckMode): ActionResult {
       const deck = deckById(id);
@@ -288,11 +300,40 @@ export function useKarteikarten(deckParam?: string | string[]) {
       changed();
       dispatch({ type: "updateRound", round });
     },
+
+    /** KI-Karten erzeugen lassen (nur Ki-Tester; Einverständnis holt der Dialog vorher ein). Ergebnis erscheint im KI-Block des Stapels. */
+    async kiGenerate(deckId: string, input: KiRequest) {
+      const token = ++kiToken.current;
+      setKi(kiBusy(deckId));
+      try {
+        const image = input.file ? await prepareKiFile(input.file) : undefined;
+        requireAccount();
+        const cards = await generateCards((payload) => executeFunction(functionIds.kiChat, payload), { text: input.topic, image, count: input.count });
+        requireAccount();
+        if (token === kiToken.current) setKi(kiLoaded(deckId, cards));
+      } catch (e) {
+        if (token === kiToken.current) setKi(kiFailed(deckId, kiErrorText(e)));
+      } finally {
+        if (input.file) discardKiFile(input.file);
+      }
+    },
+    kiToggle: (index: number) => setKi((cur) => kiToggle(cur, index)),
+    kiDiscard: () => { kiToken.current++; setKi(null); },
+    kiAdd(deckId: string) {
+      const deck = deckById(deckId);
+      if (!deck) return;
+      const r = addChosen(deck, ki, () => storeRef.current?.newId() ?? String(Date.now()));
+      if (!r) return;
+      changed();
+      setKi(null);
+      dispatch({ type: "openDeck", id: deckId, tab: "cards" });
+      say(r.message);
+    },
     async quit() {
       const ok = await confirmAsync({ title: "Runde wirklich beenden?", text: "Dein Fortschritt (auch die Level) bleibt gespeichert, aber die Runde endet hier.", confirm: "Beenden", cancel: "Weiterlernen" });
       if (ok) dispatch({ type: "toDeck" });
     },
   };
 
-  return { view: view as View, data, deckById, signedIn: userId !== null, saveStatus, reduceMotion, loadError, notice, dismissNotice: () => setNotice(null), actions };
+  return { view: view as View, data, deckById, signedIn: userId !== null, saveStatus, reduceMotion, ki, kiTester, loadError, notice, dismissNotice: () => setNotice(null), actions };
 }

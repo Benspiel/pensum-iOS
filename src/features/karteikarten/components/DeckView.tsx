@@ -12,6 +12,9 @@ import { spacing, usePensumTheme } from "../../../theme";
 import { AppText, Button, Card as Box, EmptyState, Field } from "../../../ui";
 import { LevelBoxes, Tabs } from "./common";
 import { StartButtons } from "./Dialogs";
+import { kiVisibleFor } from "../ki/cards";
+import type { KiState } from "../ki/cards";
+import { KiBlock } from "../ki/KiBlock";
 
 interface Props {
   deck: Deck;
@@ -23,9 +26,14 @@ interface Props {
   onAddCard: (front: string, back: string) => ActionResult;
   onEditCard: (card: Card) => void;
   onDeleteCard: (card: Card) => void;
+  /** KI-Vorschlag (nur Ki-Tester); wird nur im Stapel gezeigt, für den die KI gefragt wurde. */
+  ki?: KiState;
+  onKiToggle?: (index: number) => void;
+  onKiAdd?: () => void;
+  onKiDiscard?: () => void;
 }
 
-export function DeckView({ deck, tab, onTab, onBack, onEditDeck, onStart, onAddCard, onEditCard, onDeleteCard }: Props) {
+export function DeckView({ deck, tab, onTab, onBack, onEditDeck, onStart, onAddCard, onEditCard, onDeleteCard, ki = null, onKiToggle, onKiAdd, onKiDiscard }: Props) {
   const level = isLevelMode(deck);
   const due = dueCount(deck);
   const tabs: Array<[DeckTab, string]> = [["learn", "Lernen"], ["cards", `Karten (${deck.cards.length})`], ["add", "Hinzufügen"]];
@@ -40,6 +48,7 @@ export function DeckView({ deck, tab, onTab, onBack, onEditDeck, onStart, onAddC
         <Button title="Bearbeiten" accessibilityLabel="Stapel bearbeiten" variant="plain" onPress={onEditDeck} />
       </View>
       <AppText variant="title" accessibilityRole="header">{deck.name}</AppText>
+      {ki && kiVisibleFor(ki, deck.id) ? <KiBlock state={ki} onToggle={(i) => onKiToggle?.(i)} onAdd={() => onKiAdd?.()} onDiscard={() => onKiDiscard?.()} /> : null}
       <Tabs tabs={tabs} value={tab} onChange={onTab} />
       {tab === "learn" ? (
         <Box>
