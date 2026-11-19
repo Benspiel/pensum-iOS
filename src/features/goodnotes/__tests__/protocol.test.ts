@@ -60,3 +60,25 @@ test("Base64: Hin und zurück für alle Restlängen", () => {
   }
   assert.deepEqual([...base64ToBytes("SGk=")], [72, 105]);
 });
+
+import { stepValue, rangeLabel, RANGES } from "../protocol";
+
+test("Regler: Schritte runden sauber und bleiben im Bereich", () => {
+  assert.equal(stepValue("size", 1, 1), 1.05);
+  assert.equal(stepValue("size", 1.05, -1), 1);
+  assert.equal(stepValue("size", RANGES.size.max, 1), 1.6);
+  assert.equal(stepValue("size", RANGES.size.min, -1), 0.7);
+  assert.equal(stepValue("weight", 0.3, -1), 0.3);
+  assert.equal(stepValue("weight", 3, 1), 3);
+  assert.equal(stepValue("jitter", 0.1 + 0.2, 1), 0.4);
+  let v: number = 1;
+  for (let i = 0; i < 100; i++) v = stepValue("jitter", v, -1);
+  assert.equal(v, 0);
+});
+
+test("Regler: Beschriftung", () => {
+  assert.equal(rangeLabel("size", 1), "1.0×");
+  assert.equal(rangeLabel("weight", 1), "wie die Schrift");
+  assert.equal(rangeLabel("weight", 1.5), "1.50×");
+  assert.deepEqual([0, 0.5, 1, 1.5].map((v) => rangeLabel("jitter", v)), ["keine", "wenig", "mittel", "stark"]);
+});

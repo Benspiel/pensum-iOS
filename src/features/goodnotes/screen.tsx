@@ -13,7 +13,7 @@ import { takeHandoff } from "../shared/handoff";
 import { GOODNOTES_HOST_HTML } from "./host-html.generated";
 import {
   DEFAULT_SETTINGS, FONTS, INKS, PAPERS, base64ToBytes, bytesToBase64, createIdGenerator, exportFileNames, exportHint,
-  pageCountLabel, parseHostMessage, type HostMessage, type HostRequest, type InkSettings,
+  pageCountLabel, parseHostMessage, rangeLabel, stepValue, type RangeId, type HostMessage, type HostRequest, type InkSettings,
 } from "./protocol";
 
 const SAMPLE = "# Lernzettel Biologie\n\nDie Zelle ist die kleinste Einheit des Lebens.\n- Zellkern: enthält die DNA\n- Mitochondrien: Kraftwerke der Zelle\n- Ribosomen: bauen Proteine";
@@ -120,6 +120,18 @@ export default function GoodnotesScreen() {
     </Pressable>
   );
 
+
+  const stepper = (id: RangeId, label: string, value: number, key: "size" | "weight" | "jitter") => (
+    <View key={id} style={styles.stepper}>
+      <View style={{ flex: 1 }}>
+        <AppText variant="label">{label}</AppText>
+        <AppText variant="caption" tone="muted" accessibilityLiveRegion="polite">{rangeLabel(id, value)}</AppText>
+      </View>
+      <Button title="−" variant="secondary" accessibilityLabel={label + " verringern"} onPress={() => patch({ [key]: stepValue(id, value, -1) })} style={styles.stepBtn} />
+      <Button title="+" variant="secondary" accessibilityLabel={label + " erhöhen"} onPress={() => patch({ [key]: stepValue(id, value, 1) })} style={styles.stepBtn} />
+    </View>
+  );
+
   return (
     <Screen title="Goodnotes-Tool." description="Getippter Text wird zu Handschrift. Export als .goodnotes-Datei oder PDF, alles direkt auf deinem Gerät." navigationTitle="Goodnotes-Tool">
       {/* Engine: unsichtbar, läuft komplett offline */}
@@ -151,6 +163,9 @@ export default function GoodnotesScreen() {
         <View style={styles.row} accessibilityRole="radiogroup">{PAPERS.map((p) => chip(p.label, settings.paper === p.id, () => patch({ paper: p.id })))}</View>
         <AppText variant="label">Tintenfarbe</AppText>
         <View style={styles.row} accessibilityRole="radiogroup">{INKS.map((i) => chip(i.label, settings.ink === i.id, () => patch({ ink: i.id })))}</View>
+        {stepper("size", "Schriftgröße", settings.size, "size")}
+        {settings.mode === "ink" ? stepper("weight", "Strichstärke", settings.weight, "weight") : null}
+        {stepper("jitter", "Unregelmäßigkeit", settings.jitter, "jitter")}
         <AppText variant="label">Eigene Vorlage</AppText>
         <AppText variant="caption" tone="muted">{template ? `Geladen: ${template}` : "Nur nötig, wenn du ein anderes Format brauchst. Wähle eine einseitige .goodnotes-Datei."}</AppText>
         <View style={styles.row}>
@@ -184,5 +199,7 @@ const styles = StyleSheet.create({
   block: { gap: spacing.md },
   row: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" },
   chip: { minHeight: 44, paddingHorizontal: spacing.lg, justifyContent: "center", borderWidth: 1, borderRadius: radius.pill },
+  stepper: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  stepBtn: { minWidth: 52 },
   page: { width: "100%", aspectRatio: 595.28 / 841.89, borderWidth: 1, borderRadius: radius.field, backgroundColor: "#fff" },
 });
