@@ -80,10 +80,10 @@ const definitions: Record<ToolId, Omit<Tool, 'id'>> = {
   },
   spiele: {
     title: 'Spiele',
-    description: 'Vier gewinnt gegen den Computer und weitere Spiele für die Pause.',
+    description: 'Vier gewinnt gegen den Computer mit drei Schwierigkeitsstufen.',
     symbol: { ios: 'gamecontroller', android: 'sports_esports', web: 'sports_esports' },
     access: 'tester',
-    implementation: 'unavailable',
+    implementation: 'native',
   },
   notenrechner: {
     title: 'Notenrechner',

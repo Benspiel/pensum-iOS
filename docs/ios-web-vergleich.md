@@ -6,7 +6,7 @@ Web-Referenz: `main` bei `770dbe4e26236e4371126f5fcd2b9ea864b767d3`. Die Web-Sui
 | --- | --- | --- |
 | Notenrechner | Native Route, Gast- und Kontospeicher, fachliche Berechnung aus dem Web | Noten/Punkte, Halbjahr und Jahreswechsel auf dem Gerät prüfen. |
 | Planer | Native Route, Gast- und Kontospeicher, Datumswahl und Stapel-Link | App-Link `/tools/karteikarten?deck=<id>`; Browser verwendet `#deck=<id>`. Neustart und Gastimport auf dem Gerät prüfen. Teilfehler und Wiederholungen sind durch Speichertests abgedeckt. |
-| Karteikarten | Native Route, Gast- und Kontospeicher, Lernstapel und Modi | Planer-Direktlink, Upgrade bestehender Kontodaten und Kontotrennung prüfen. |
+| Karteikarten | Native Route, Gast- und Kontospeicher, Lernstapel und Modi; Karten aus Text, Foto oder PDF mit KI nur für Ki-Tester | Planer-Direktlink, Upgrade bestehender Kontodaten und Kontotrennung prüfen. |
 | Mindmap | Nativ über Appwrite, Kontoliste, KI-Anlage und -Änderung, Baumeditor | Verschachtelter Editor mit explizitem Speichern, PDF der Baumstruktur und Textübergabe. Ausdruck des Denkbaums, native Canvas-Gestaltung und Handschrift im Dokument unterscheiden sich vom Web. |
 | Abschreiben | Nativ über Appwrite, Kamera/Fotos, Tageslimit, Textbearbeitung und Kopieren | Textübergabe an Goodnotes-Tool liegt im App-Speicher. Kamera, Berechtigungen und Rückkehr aus dem Fotosystem prüfen. |
 | Aufgaben | An Tester gebunden; Foto/PDF, Seitenauswahl, Antworten, PDF- und Bildexport | Öffnet eine PDF-Seite per Core Graphics, bietet Standardschrift und einen iOS-Handschriftstil. Eigene Handschrift läuft als Textübergabe zum Goodnotes-Tool. Xcode-Gerätenachweis für das Dokumentmodul steht aus. |
@@ -14,9 +14,9 @@ Web-Referenz: `main` bei `770dbe4e26236e4371126f5fcd2b9ea864b767d3`. Die Web-Sui
 | KI-Chat | Nativ über Appwrite, nur für Ki-Tester, mit Foto/PDF, Klassenstufe und dauerhaftem Verlauf | Server speichert die Chatdaten. Schrittanzeige nur für frische Antworten. Markdown wird vereinfacht angezeigt. Tool mit synthetischem Ki-Tester-Konto abnehmen. |
 | Team | Nativ, nur für Admins und mit serverseitiger Team-Prüfung | Statistik und Nutzungsübersicht als native Listen mit bestehenden Backend-Zahlen. Die App erfasst in diesem Stand keine neuen Werkzeugbesuche. Betriebsdaten mit freigegebenem Admin-Testzugriff prüfen. |
 | Goodnotes-Tool | Siehe [Goodnotes- und Spiele-Plan](b-goodnotes-spiele-plan.md) und den gemeinsamen Abnahmestand | Texteingabe, Handschrift, PDF, `.goodnotes` und Übergaben separat prüfen. |
-| Spiele | Tester-Zugriff gemäß Web-Regeln | Nativen Umfang und gegebenenfalls ausdrücklich gekennzeichnete Website-Fallbacks im Geräteprotokoll festhalten. |
+| Spiele | Vier gewinnt nativ, nur für das Tester-Team | Asteroids, Dino-Runner, Arcade und Schach sind in iOS offen. Der Stand enthält keine Website-Einbettung. Einzelheiten stehen im [Spiele-Funktionsvergleich](../src/features/spiele/OPEN.md). |
 
-Die Tests für alle drei Lernwerkzeuge prüfen fehlgeschlagene und wiederholte Gastübernahmen sowie den Zeitablauf vor Logout. Die [Geräte-Testfälle](b-abnahme-testplan.md) ergänzen diese Prüfungen.
+Die Tests für alle drei Lernwerkzeuge prüfen fehlgeschlagene und wiederholte Gastübernahmen sowie die Weitergabe von Speicherfehlern vor dem Abmelden. Die [Geräte-Testfälle](b-abnahme-testplan.md) ergänzen diese Prüfungen.
 
 ## Konto
 
