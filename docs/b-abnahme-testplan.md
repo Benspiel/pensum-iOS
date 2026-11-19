@@ -100,6 +100,15 @@ Legende: **G** = Gast, **K** = Konto (T1), **K2** = zweites Konto (T2).
 | G12 | Speicher/Zeit: 3 Seiten + Echte Tinte auf ältestem Testgerät | Kein Absturz der WebView, akzeptable Dauer (Zeit notieren) | |
 | G13 | **Übergabe Abschreiben → Goodnotes** (Abschreiben liefert Text, Button zu Goodnotes) | Text und Name erscheinen einmal; erneutes Öffnen von Goodnotes zeigt sie nicht mehr; nach > 10 Minuten verfällt sie | |
 | G14 | Dynamische Schrift, VoiceOver, Dark Mode | Bedienelemente (44 pt) benutzbar | |
+| G15 | **Eigene Handschrift (Gast):** „Eigene Handschrift zeichnen“, 3 Zeichen mit dem Finger/Apple Pencil schreiben, „Speichern“ | Striche folgen dem Finger ohne Scrollen des Blattes, Fortschritt „Zeichen n von 85 · k gezeichnet“, „Meine Handschrift“ erscheint | |
+| G16 | Handschrift: Zurück, Weiter/Überspringen, Rückgängig, Zeichen leeren, Sprung über die Zeichenliste | Verhalten wie im Web; letzte Taste heißt „Fertig“ und speichert | |
+| G17 | Handschrift wählen, Text mit gezeichneten und nicht gezeichneten Zeichen, „Natürlich variieren“ an/aus | Vorschau in eigener Schrift; fehlende Zeichen mit Lücke; Variation sichtbar | |
+| G18 | Handschrift: Neustart der App | Handschrift bleibt (Gast: Gerät, Konto: Appwrite) | |
+| G19 | **Handschrift Konto:** T1 anmelden, speichern, in Appwrite Zeile `handwriting` mit Zeilen-ID = Benutzer-ID und Rechten nur für T1 prüfen; erneut speichern (Update) | Eine Zeile, kein Duplikat, `glyphs` JSON | |
+| G20 | **Handschrift Gastimport:** Gast-Handschrift anlegen, mit T1 (ohne Konto-Handschrift) anmelden | Dialog „Lokale Handschrift übernehmen?“; „Ins Konto übernehmen“ → Gast-Eintrag gelöscht; „Nicht übernehmen“ → kommt für T1 nicht wieder; Fehler (Flugmodus) → Gast bleibt | |
+| G21 | Handschrift **zwei Konten:** T2 anmelden | T2 sieht die Handschrift von T1 nicht | |
+| G22 | Handschrift löschen (Rückfrage) und Offline-Speichern | Gelöscht, Font fällt auf Caveat zurück; Offline → verständliche Fehlermeldung, nichts geht still verloren | |
+| G23 | Regler Schriftgröße/Strichstärke/Unregelmäßigkeit (− / +) | Werte und Beschriftung wie Web, Vorschau passt sich an | |
 
 ### 1.5 Übergreifend
 
@@ -160,11 +169,11 @@ Testnachweis = automatische Tests im App-Repo (`npm test`, `node:test` via `tsx`
 | Web-Funktion | iOS-Umsetzung | Abweichung | Testnachweis |
 | --- | --- | --- | --- |
 | Tinten-Engine (Layout, Skelettierung, Goodnotes-Strichformat, PDF) | **unveränderte** Engine, lokal in WebView (`engine/`, `host-html.generated.ts`), kein Netz | Seitenvorschau als PNG statt Live-Canvas; kein „Website-Fallback“ | Browser: Render → PNG, `.goodnotes` = ZIP, PDF gültig; `goodnotes/__tests__` (6 Tests: Protokoll, Base64, HTML ohne externe Ressourcen) |
-| Papier (4), Schriften (6), Tinte (4), Modus Tinte/PDF | native Auswahl (Chips) | keine Strichstärke-/Größen-/Schwankungsregler in der Oberfläche (Standardwerte) | Gerät G3 |
+| Papier (4), Schriften (6), Tinte (4), Modus Tinte/PDF, Regler Größe/Strichstärke/Unregelmäßigkeit | native Auswahl (Chips) und −/+ Regler | Regler per Schritt statt Schieberegler, gleiche Bereiche | Tests `stepValue`/`rangeLabel`; Gerät G3, G23 |
 | Export `.goodnotes`/PDF per Download | Datei im Cache + iOS-Teilen-Menü (`expo-sharing`) | andere Auslieferung (Teilen statt Download) | Gerät G5–G8 |
 | Bytegleiche Exporte | – | wegen Zufallsanteilen (IDs) nicht erwartbar; Format identisch (gleicher Code) | Browser (ZIP/PDF-Köpfe) |
 | Eigene Vorlage (.goodnotes) mit Speicherung in `localStorage` | Auswahl über Dateidialog (`expo-document-picker`) | Vorlage gilt nur für die Sitzung (nicht gespeichert) | Gerät G9/G10 |
-| Eigene Handschrift zeichnen/speichern (Tabelle `handwriting`) | **noch nicht umgesetzt** | offen (Phase 2, siehe `docs/b-goodnotes-spiele-plan.md`) | – |
+| Eigene Handschrift zeichnen/speichern (Tabelle `handwriting`), Variation | `HandPad.tsx` (Zeichenfeld in lokaler WebView), `hand-store.ts`, `useHand.ts` | Bedienung nativ; Variation per −/+ statt Schieberegler; Upsert über `RowsApi` (update, bei 404 create) | `goodnotes/__tests__` (Store, Pad-Nachrichten, Pad-HTML); Browser: gezeichnetes „a" → gerendert; Gerät G15–G22 |
 | Mehrseiten-Dialog „n Dateien erzeugen?“ | immer eine Datei je Seite im Tinten-Modus | im PDF-Modus ebenfalls einzelne Dateien (Web bietet Alternative) | Gerät G7 |
 | Übergabe aus Abschreiben (`sessionStorage`, 10 min, einmal) | `takeHandoff()` (In-Memory, gleiche Regeln) | nicht über Neustart hinweg | `shared/__tests__/handoff.test.ts` (4); Gerät G13 |
 | Schriften per Webfont | Base64-`@font-face` in der WebView | Laden im WKWebView ungeprüft | Gerät G3 |
@@ -172,7 +181,7 @@ Testnachweis = automatische Tests im App-Repo (`npm test`, `node:test` via `tsx`
 ## Teil 3: Bekannte offene Punkte vor dem Release-Kandidaten
 
 1. Kein Gerätelauf bisher; alle Zeilen in Teil 1 offen.
-2. Goodnotes: eigene Handschrift (Zeichnen, Speichern pro Konto) fehlt; Bedienelemente für Strichstärke/Größe/Schwankung fehlen.
+2. Goodnotes: Handschrift und Regler sind gebaut (Branch `codex/pensum-ios-b-goodnotes-controls`), aber nur im Browser und per Unit-Test belegt; Touch im WKWebView und der Konto-Upsert gegen echtes Appwrite sind offen.
 3. Karteikarten: KI-Erzeugung fehlt (Team `ki-tester`).
 4. Spiele: im Web „Kommt bald“, in der App ebenso nicht gebaut.
 5. Konto-Präferenzen und Abmelde-Reihenfolge (ungespeicherte Änderungen) müssen auf dem Gerät belegt werden (N12).
