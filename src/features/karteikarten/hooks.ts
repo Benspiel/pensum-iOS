@@ -1,13 +1,14 @@
 /* Karteikarten – Zustand und Aktionen der Oberfläche (React-Hook). Die Logik steckt in session-model.ts, ops.ts, core.ts und store.ts.
  * Web-Quelle: tools/karteikarten/karteikarten.js (Pensum, Web-Commit 770dbe4): persist, onAuthChange, offerImport/runImport, Klick- und Submit-Handler.
- * Unterschiede: Datenobjekt wird wie im Web an Ort und Stelle verändert und danach gespeichert; Dialoge über Alert; keine Haptik. */
+ * Unterschiede: Datenobjekt wird wie im Web an Ort und Stelle verändert und danach gespeichert; Dialoge über Alert; Haptik über components/haptic.ts; vor dem Abmelden flushOrThrow (registerBeforeLogout). */
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AccessibilityInfo, Alert, AppState } from "react-native";
 import { useSession } from "../../account/session";
+import { haptic } from "./components/haptic";
 import { useStoreDeps } from "../../storage";
 import type { DeckMode, StudyType } from "./core";
 import { resolveDeckParam } from "./index";
-import { addCard as addCardTo, checkCardText, checkDeckEdit, checkNewDeck, importGuestDecks, importPrompt, markDeclined, readDeclined, shouldOfferImport } from "./ops";
+import { addCard as addCardTo, checkCardText, checkDeckEdit, checkNewDeck, importIntoAccount, importPrompt, markDeclined, readDeclined, shouldOfferImport } from "./ops";
 import {
   checkRound, currentCard, flipRound, gradeRound, initialView, loadingDelay, nextRound, overrideRound, restartDeck, startRound, viewReducer,
 } from "./session-model";
@@ -33,7 +34,7 @@ const fail = (error: string): ActionResult => ({ ok: false, error });
 const OK: ActionResult = { ok: true };
 
 export function useKarteikarten(deckParam?: string | string[]) {
-  const { state } = useSession();
+  const { state, registerBeforeLogout } = useSession();
   const userId = state.status === "account" ? state.user.id : null;
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const statusRef = useRef<SaveStatus>("saved");
@@ -119,17 +120,18 @@ export function useKarteikarten(deckParam?: string | string[]) {
       const ok = await confirmAsync({ title: p.title, text: p.text, confirm: p.confirm, cancel: p.cancel });
       if (cancelled) return;
       if (!ok) { await markDeclined(deps.kv, userId); return; }
-      const r = importGuestDecks(dataRef.current, local, store.newId);
-      if (r.noRoom) { say(r.message, true); return; }
-      dataRef.current = r.data;
-      persist();
-      bump();
-      if (r.complete) {
-        // Gast-Daten erst löschen, wenn das Konto sie sicher hat (flush meldet Fehler über onStatus, nicht als Ausnahme)
-        await store.flush();
-        if (statusRef.current === "saved") await guest.clear();
-      }
-      say(r.message);
+      if (store.kind !== "cloud") return;
+      const out = await importIntoAccount({
+        local,
+        getData: () => dataRef.current,
+        setData: (d) => { dataRef.current = d; bump(); },
+        store,
+        guest,
+      });
+      if (cancelled) return;
+      if (out.result.noRoom) say(out.result.message, true);
+      else if (!out.saved) say("Die Karten konnten noch nicht im Konto gespeichert werden. Deine lokalen Karten bleiben erhalten, die Übernahme klappt beim nächsten Öffnen.", true);
+      else say(out.result.message);
     })();
     return () => {
       cancelled = true;
@@ -145,6 +147,15 @@ export function useKarteikarten(deckParam?: string | string[]) {
     const id = resolveDeckParam(dataRef.current, { deck: paramKey ?? undefined });
     if (id) dispatch({ type: "openDeck", id });
   }, [ready, paramKey]);
+
+  // Vor dem Abmelden: alles Ausstehende sicher speichern (lehnt ab, wenn das nicht gelingt, dann bricht das Abmelden ab)
+  useEffect(() => {
+    if (!userId) return undefined;
+    return registerBeforeLogout(async () => {
+      const store = storeRef.current;
+      if (store) await store.flushOrThrow();
+    });
+  }, [userId, registerBeforeLogout]);
 
   // Alles Ausstehende speichern, wenn die App in den Hintergrund geht
   useEffect(() => {
@@ -238,24 +249,33 @@ export function useKarteikarten(deckParam?: string | string[]) {
         r = startRound(deck, type);
         if (r.kind !== "ready") return;
       }
+      haptic("start");
       dispatch({ type: "beginRound", round: r.round });
     },
     flip() {
-      if (view.name === "study") dispatch({ type: "updateRound", round: flipRound(view.round) });
+      if (view.name !== "study" || view.round.flipped) return;
+      haptic("flip");
+      dispatch({ type: "updateRound", round: flipRound(view.round) });
     },
     check(given: string) {
       if (view.name !== "study") return;
       const deck = deckById(view.round.deckId);
-      if (deck) dispatch({ type: "updateRound", round: checkRound(view.round, currentCard(deck, view.round), given) });
+      if (!deck) return;
+      const round = checkRound(view.round, currentCard(deck, view.round), given);
+      if (round.feedback) haptic(round.feedback.ok ? "right" : "wrong");
+      dispatch({ type: "updateRound", round });
     },
     override() {
-      if (view.name === "study") dispatch({ type: "updateRound", round: overrideRound(view.round) });
+      if (view.name !== "study") return;
+      haptic("right");
+      dispatch({ type: "updateRound", round: overrideRound(view.round) });
     },
     grade(ok: boolean) {
       if (view.name !== "study") return;
       const deck = deckById(view.round.deckId);
       if (!deck) return;
       const round = gradeRound(deck, view.round, ok);
+      if (round.queue.length === 0) haptic("done"); else haptic(ok ? "right" : "wrong");
       changed();
       dispatch({ type: "updateRound", round });
     },
@@ -264,6 +284,7 @@ export function useKarteikarten(deckParam?: string | string[]) {
       const deck = deckById(view.round.deckId);
       if (!deck) return;
       const round = nextRound(deck, view.round);
+      if (round.queue.length === 0) haptic("done");
       changed();
       dispatch({ type: "updateRound", round });
     },
@@ -273,5 +294,5 @@ export function useKarteikarten(deckParam?: string | string[]) {
     },
   };
 
-  return { view: view as View, data, deckById, signedIn: userId !== null, saveStatus, loadError, notice, dismissNotice: () => setNotice(null), actions };
+  return { view: view as View, data, deckById, signedIn: userId !== null, saveStatus, reduceMotion, loadError, notice, dismissNotice: () => setNotice(null), actions };
 }

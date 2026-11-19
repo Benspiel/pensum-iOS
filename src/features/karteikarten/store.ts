@@ -71,6 +71,8 @@ export interface GuestStore {
   save(data: KarteikartenData): Promise<boolean>;
   /** Wartet, bis alle begonnenen Schreibzugriffe durch sind. */
   flush(): Promise<void>;
+  /** Wie flush(); Schreibfehler des Gast-Speichers zeigt save() als false, deshalb lehnt diese Variante nie ab. */
+  flushOrThrow(): Promise<void>;
   clear(): Promise<void>;
   newId(): string;
 }
@@ -81,8 +83,13 @@ export interface CloudStore {
   load(): Promise<KarteikartenData>;
   /** Sammelt Änderungen und schreibt sie nach kurzer Pause in einem Rutsch. Liefert sofort true. */
   save(data: KarteikartenData): Promise<boolean>;
-  /** Alles Ausstehende sofort speichern (vor dem Abmelden und beim Verlassen der App). */
+  /** Alles Ausstehende sofort speichern (AppState, Verlassen des Screens). Fehler gehen nur über onStatus("error"), das Promise löst auf. */
   flush(): Promise<void>;
+  /**
+   * Wie flush(), aber ehrlich: wartet auf alle Schreibvorgänge samt gesammelten Änderungen und lehnt ab (mit dem Fehler des Servers),
+   * wenn ein Schreibvorgang gescheitert ist oder noch Änderungen ungespeichert sind. Für „vor dem Abmelden“ und den Gastimport.
+   */
+  flushOrThrow(): Promise<void>;
   newId(): string;
 }
 
@@ -114,6 +121,7 @@ export function createGuestStore(deps: { kv: KeyValueStore; rows?: Pick<RowsApi,
       });
     },
     async flush() { await chain; },
+    async flushOrThrow() { await chain; },
     clear() {
       return enqueue(async () => { try { await kv.removeItem(GUEST_KEY); } catch (_) { /* egal */ } });
     },
@@ -157,6 +165,7 @@ export function createCloudStore(user: { $id: string }, deps: StoreDeps, options
   let running: Promise<void> | null = null; // laufende Synchronisation
   let again = false;
   let retry: ReturnType<typeof setTimeout> | null = null;
+  let failure: { error: unknown } | null = null; // letzter Schreibvorgang gescheitert (bis zum nächsten Erfolg)
 
   const deckRow = (d: Deck): DeckRow => ({ name: d.name, mode: d.mode });
   const cardRow = (c: Card, deckId: string): CardRow => ({ deckId, front: c.front, back: c.back, level: c.level });
@@ -171,8 +180,10 @@ export function createCloudStore(user: { $id: string }, deps: StoreDeps, options
         onStatus("saving");
         try {
           await push(snap);
+          failure = null;
           if (!again && !timer) onStatus("saved");
         } catch (e) {
+          failure = { error: e };
           onStatus("error", e);
           if (retry) clearTimeout(retry);
           retry = setTimeout(() => { void sync(); }, retryDelayMs); // später nochmal versuchen
@@ -227,6 +238,16 @@ export function createCloudStore(user: { $id: string }, deps: StoreDeps, options
     else if (running) await running;
   }
 
+  /** Wie flush(), lehnt aber ab, wenn etwas nicht gespeichert werden konnte. */
+  async function flushOrThrow(): Promise<void> {
+    for (let round = 0; round < 5; round++) { // Änderungen, die während des Schreibens eintreffen, brauchen eine weitere Runde
+      await flush();
+      if (failure) throw failure.error instanceof Error ? failure.error : Object.assign(new Error("Speichern fehlgeschlagen"), { code: (failure.error as { code?: unknown } | null)?.code, cause: failure.error });
+      if (!timer && !running) return;
+    }
+    throw new Error("Es kommen laufend Änderungen hinzu, die noch nicht gespeichert sind.");
+  }
+
   return {
     kind: "cloud",
     userId,
@@ -248,6 +269,7 @@ export function createCloudStore(user: { $id: string }, deps: StoreDeps, options
       }
       for (const r of decks) syncedDecks.set(r.$id, { name: r.name, mode: r.mode });
       latest = null;
+      failure = null;
       return clean({ decks: decks.map((r) => ({ id: r.$id, name: r.name, mode: r.mode, cards: byDeck.get(r.$id) })) }, () => rows.newId());
     },
 
@@ -261,5 +283,6 @@ export function createCloudStore(user: { $id: string }, deps: StoreDeps, options
     },
 
     flush,
+    flushOrThrow,
   };
 }
