@@ -141,39 +141,34 @@ export interface ExportRow {
   onPress: () => void;
 }
 
-export function ExportList({ title, rows }: { title: string; rows: ExportRow[] }) {
+export function ExportList({ rows }: { rows: ExportRow[] }) {
   const { colors } = usePensumTheme();
   return (
-    <View style={[styles.sp, { backgroundColor: colors.canvas, borderColor: colors.border }]}>
-      <View style={styles.spHead}>
-        <AppText accessibilityRole="header" style={styles.spTitle}>{title}</AppText>
-      </View>
-      <View style={[styles.spList, { backgroundColor: colors.surface }]}>
-        {rows.map((row, i) => (
-          <Pressable
-            key={row.id}
-            accessibilityRole="button"
-            accessibilityLabel={row.accessibilityLabel}
-            accessibilityHint={row.hint}
-            accessibilityState={{ disabled: row.disabled, busy: row.busy }}
-            disabled={row.disabled}
-            onPress={row.onPress}
-            style={({ pressed }) => [
-              styles.spRow,
-              i > 0 && { borderTopWidth: 1, borderTopColor: colors.border },
-              { backgroundColor: pressed ? colors.hairlineSoft : "transparent", opacity: row.disabled && !row.busy ? 0.45 : 1 },
-            ]}
-          >
-            <View accessible={false} style={[styles.spIcon, { backgroundColor: colors.canvas, borderColor: colors.border }]}>
-              {row.busy ? <ActivityIndicator color={colors.ink} /> : <SymbolView name={row.symbol} tintColor={colors.ink} size={20} />}
-            </View>
-            <View style={styles.spText} accessible={false}>
-              <AppText variant="link" accessible={false} style={styles.spLabel}>{row.title}</AppText>
-              <AppText variant="caption" tone="muted" accessible={false} numberOfLines={2} style={styles.spHint}>{row.hint}</AppText>
-            </View>
-          </Pressable>
-        ))}
-      </View>
+    <View style={[styles.spList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      {rows.map((row, i) => (
+        <Pressable
+          key={row.id}
+          accessibilityRole="button"
+          accessibilityLabel={row.accessibilityLabel}
+          accessibilityHint={row.hint}
+          accessibilityState={{ disabled: row.disabled, busy: row.busy }}
+          disabled={row.disabled}
+          onPress={row.onPress}
+          style={({ pressed }) => [
+            styles.spRow,
+            i > 0 && { borderTopWidth: 1, borderTopColor: colors.border },
+            { backgroundColor: pressed ? colors.hairlineSoft : "transparent", opacity: row.disabled && !row.busy ? 0.45 : 1 },
+          ]}
+        >
+          <View accessible={false} style={[styles.spIcon, { backgroundColor: colors.canvas, borderColor: colors.border }]}>
+            {row.busy ? <ActivityIndicator color={colors.ink} /> : <SymbolView name={row.symbol} tintColor={colors.ink} size={20} />}
+          </View>
+          <View style={styles.spText} accessible={false}>
+            <AppText variant="link" accessible={false} style={styles.spLabel}>{row.title}</AppText>
+            <AppText variant="caption" tone="muted" accessible={false} numberOfLines={2} style={styles.spHint}>{row.hint}</AppText>
+          </View>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -197,10 +192,7 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   stepperText: { flex: 1, minHeight: 44, justifyContent: "center" },
   stepButton: { width: 44, minWidth: 44, paddingHorizontal: 0 },
-  sp: { borderWidth: 1, borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden" },
-  spHead: { minHeight: 52, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.md },
-  spTitle: { fontSize: 15, lineHeight: 20, fontWeight: "600" },
-  spList: { marginHorizontal: spacing.lg, marginTop: spacing.sm, marginBottom: spacing.xl, borderRadius: radius.field, borderCurve: "continuous", overflow: "hidden" },
+  spList: { borderWidth: 1, borderRadius: radius.field, borderCurve: "continuous", overflow: "hidden" },
   spRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg, minHeight: 64, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
   spIcon: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   spText: { flex: 1, minWidth: 0 },

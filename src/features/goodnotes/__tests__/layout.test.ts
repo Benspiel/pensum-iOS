@@ -1,27 +1,29 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { COLUMN_GAP, handPadHeight, isTabletWindow, optionColumns, splitColumnWidths } from "../layout";
+import { handPadHeight, isTabletWindow, optionColumns, previewColumns } from "../layout";
 
-test("Spaltenbreiten 6:4 ohne Rundungsverlust", () => {
-  for (const inner of [804, 852, 1072, 1120]) {
-    const { preview, settings } = splitColumnWidths(inner);
-    assert.equal(preview + settings + COLUMN_GAP, inner);
-    assert.ok(preview > settings);
+test("Auch auf einem iPad im Hochformat bleiben dem Editor mindestens 440 Punkte", () => {
+  for (const inner of [676, 696, 712, 852, 1072, 1120]) {
+    const columns = previewColumns(inner, 820, 1);
+    assert.ok(columns && columns.preview >= 220 && columns.editor >= 440);
+    assert.equal(columns.preview + columns.editor + columns.gap, inner);
   }
-  assert.deepEqual(splitColumnWidths(1072), { preview: 624, settings: 416 });
-  assert.deepEqual(splitColumnWidths(10), { preview: 0, settings: 0 });
+  assert.deepEqual(previewColumns(696, 1133, 1), { preview: 240, editor: 440, gap: 16 });
+  assert.deepEqual(previewColumns(1072, 820, 1), { preview: 529, editor: 503, gap: 40 });
 });
 
-test("Raster: einspaltig wie bisher nach Fensterbreite", () => {
-  assert.deepEqual(optionColumns(375, false, 0), { fonts: 2, papers: 2 });
-  assert.deepEqual(optionColumns(430, false, 0), { fonts: 2, papers: 2 });
-  assert.deepEqual(optionColumns(820, false, 0), { fonts: 3, papers: 4 });
+test("Vorschau wird bei wenig Platz oder großer Schrift separat angezeigt", () => {
+  assert.equal(previewColumns(343, 812, 1), undefined);
+  assert.equal(previewColumns(675, 820, 1), undefined);
+  assert.equal(previewColumns(852, 430, 1), undefined);
+  assert.equal(previewColumns(1072, 820, 1.5), undefined);
 });
 
-test("Raster: in der Einstellungsspalte nach deren Breite", () => {
-  assert.deepEqual(optionColumns(900, true, 320), { fonts: 2, papers: 2 });
-  assert.deepEqual(optionColumns(1366, true, 416), { fonts: 3, papers: 2 });
-  assert.deepEqual(optionColumns(1366, true, 500), { fonts: 3, papers: 4 });
+test("Stilraster berücksichtigt verfügbare Breite und Schriftgröße", () => {
+  assert.deepEqual(optionColumns(343, 1, 17), { fonts: 2, papers: 2 });
+  assert.deepEqual(optionColumns(440, 1, 25), { fonts: 3, papers: 2 });
+  assert.deepEqual(optionColumns(503, 1, 25), { fonts: 3, papers: 4 });
+  assert.deepEqual(optionColumns(500, 1.5, 25), { fonts: 2, papers: 2 });
 });
 
 test("Tablet-Fenster: kurze Seite ≥ 600 und Schrift ≤ 1,25", () => {

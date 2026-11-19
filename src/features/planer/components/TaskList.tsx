@@ -6,7 +6,7 @@ import { AppText, Badge, Button, TintContext } from "../../../ui";
 import { radius, resolveTextStyle, spacing, usePensumTheme } from "../../../theme";
 import { groupTasks, type PlanItem } from "../core";
 import { groupHeading, taskEmpty, taskRowModel } from "../model";
-import { Disclosure } from "./Disclosure";
+import { Disclosure } from "../../../ui/Disclosure";
 import { Empty } from "./Empty";
 import { IconButton } from "./IconButton";
 import { useReduceMotion } from "./useReduceMotion";

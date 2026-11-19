@@ -1,22 +1,22 @@
-/* Goodnotes-Tool – nativer Screen. Die Tinten-Engine läuft unverändert und offline in einer WebView (engine/, host-html.generated.ts);
- * Eingabe, Auswahl, Speichern und Teilen sind nativ. Vorlage Web: tools/goodnotes/index.html + goodnotes.js + goodnotes.css (Commit 770dbe4).
- * Reihenfolge und Optik wie die Website: Vorschau, Panels „Dein Text.“ und „Stil.“, eigene Vorlage, Export als Stack-Panel-Zeilen. */
 import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
+import { useHeaderHeight } from "expo-router/react-navigation";
 import * as Sharing from "expo-sharing";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Switch, View, useWindowDimensions } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
+import { Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View, useWindowDimensions } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
-import { radius, spacing, usePensumTheme } from "../../theme";
-import { AppText, Badge, Button, Field, Panel, Screen } from "../../ui";
+import { gutter, radius, resolveTextStyle, spacing, usePensumTheme } from "../../theme";
+import { AppText, Badge, Button, Screen } from "../../ui";
+import { Disclosure } from "../../ui/Disclosure";
 import { useWideLayout } from "../../ui/TwoColumn";
 import { takeHandoff } from "../shared/handoff";
+import { ExportBar, ExportMenu } from "./ExportMenu";
 import { HandPad } from "./HandPad";
-import { COLUMN_GAP, PREVIEW_WEIGHT, SETTINGS_WEIGHT, optionColumns, splitColumnWidths } from "./layout";
+import { optionColumns, previewColumns } from "./layout";
 import { handInfo } from "./hand-store";
 import { GOODNOTES_HOST_HTML } from "./host-html.generated";
-import { ExportList, FormMessage, Grid, InkDot, Notice, OptionTile, PaperSwatch, StepperRow } from "./parts";
+import { FormMessage, Grid, InkDot, Notice, OptionTile, PaperSwatch, StepperRow } from "./parts";
 import { useHand } from "./useHand";
 import { deleteQuietly, ENGINE_GIVEUP_MESSAGE } from "./request-queue";
 import { useWebViewChannel } from "./useWebViewChannel";
@@ -25,23 +25,39 @@ import {
   pageCountLabel, parseHostMessage, rangeLabel, stepValue, type RangeId, type HostMessage, type HostRequest, type InkSettings,
 } from "./protocol";
 
-const SAMPLE = "# Lernzettel Biologie\n\nDie Zelle ist die kleinste Einheit des Lebens.\n- Zellkern: enthält die DNA\n- Mitochondrien: Kraftwerke der Zelle\n- Ribosomen: bauen Proteine";
+const SAMPLE = [
+  "# Lernzettel Biologie",
+  "",
+  "Die Zelle ist die kleinste Einheit des Lebens.",
+  "- Zellkern: enthält die DNA",
+  "- Mitochondrien: Kraftwerke der Zelle",
+  "- Ribosomen: bauen Proteine",
+  "",
+  "Tipp: Zeilen mit # werden zu Überschriften, Zeilen mit - zu Aufzählungen.",
+].join("\n");
+const A4_ASPECT = 595.28 / 841.89;
 
 type Req = HostRequest extends infer T ? (T extends { id: string } ? Omit<T, "id"> : never) : never;
 
 export default function GoodnotesScreen() {
-  const { colors } = usePensumTheme();
-  const { width } = useWindowDimensions();
-  const { split, inner } = useWideLayout();
+  const { colors, customFonts, scheme } = usePensumTheme();
+  const { width, height, fontScale } = useWindowDimensions();
+  const { inner } = useWideLayout();
+  const headerHeight = useHeaderHeight();
   const [epoch, setEpoch] = useState(0);
   const [text, setText] = useState(SAMPLE);
   const [fileName, setFileName] = useState("Lernzettel");
   const [settings, setSettings] = useState<InkSettings>(DEFAULT_SETTINGS);
   const [pages, setPages] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportError, setExportError] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [template, setTemplate] = useState<string | null>(null);
+  const settingsScroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const input = useRef<ComponentRef<typeof TextInput>>(null);
+  const editorTop = useRef(0);
   // Vorlage merken: stürzt die WebView ab, ist sie in der Engine weg und wird nach dem Neustart erneut geladen
   const templateRef = useRef<{ name: string; base64: string } | null>(null);
   const giveUp = useCallback(() => setError(ENGINE_GIVEUP_MESSAGE), []);
@@ -66,6 +82,7 @@ export default function GoodnotesScreen() {
 
   const say = useMemo(() => ({ notice: (t: string) => { setNotice(t); setError(null); }, error: (t: string) => setError(t) }), []);
   const hand = useHand(call, ready, say);
+  const hasText = text.trim().length > 0;
   // Ohne Handschrift darf sie nicht ausgewählt bleiben (Web: selectFont("Caveat"))
   useEffect(() => { if (hand.loaded && !hand.count && settings.font === HAND_FONT) setSettings((s) => ({ ...s, font: "Caveat", handVary: 0 })); }, [hand.loaded, hand.count, settings.font]);
 
@@ -122,8 +139,9 @@ export default function GoodnotesScreen() {
   }
 
   async function exportAs(kind: "pdf" | "goodnotes") {
-    if (!pages.length) { setError("Es gibt noch nichts zum Exportieren."); return; }
-    setBusy(kind); setError(null); setNotice(null);
+    if (!hasText || !ready || busy) return;
+    Keyboard.dismiss();
+    setBusy(kind); setExportError(""); setNotice(null);
     const made: File[] = [];
     try {
       if (!await Sharing.isAvailableAsync()) throw new Error("Teilen ist auf diesem Gerät nicht verfügbar.");
@@ -143,52 +161,97 @@ export default function GoodnotesScreen() {
         });
         deleteQuietly(file); // nach dem Teilen nicht im Cache liegen lassen; ein Fehler beim Löschen stört das Teilen nicht
       }
+      setExportOpen(false);
       setNotice(exportHint(kind, res.files.length));
-    } catch (e) { setError(e instanceof Error ? e.message : "Der Export ist fehlgeschlagen."); }
+    } catch (e) { setExportError(e instanceof Error ? e.message : "Der Export ist fehlgeschlagen."); }
     finally { for (const f of made) deleteQuietly(f); setBusy(null); }
   }
 
   const stepFor = (id: RangeId, key: "size" | "weight" | "jitter", value: number) => (dir: 1 | -1) => patch({ [key]: stepValue(id, value, dir) });
   const varyBy = (dir: 1 | -1) => patch({ handVary: Math.min(HAND_VARY.max, Math.max(HAND_VARY.min, Math.round((settings.handVary + dir * HAND_VARY.step) * 10) / 10)) });
-  const { fonts: columnsFonts, papers: columnsPapers } = optionColumns(width, split, splitColumnWidths(inner).settings);
-  const exportBlocked = !ready || !!busy || !pages.length;
+  const columns = previewColumns(inner, height, fontScale);
+  const split = columns !== undefined;
+  const { fonts: columnsFonts, papers: columnsPapers } = optionColumns(columns?.editor ?? inner, fontScale, gutter(width) + 1);
+  const compactPageHeight = Math.round(Math.max(128, Math.min(224, height * 0.28)));
+  const textHeight = Math.round(Math.max(224, Math.min(300, height * 0.3)) * Math.max(1, fontScale));
+  const exportBlocked = !ready || !!busy || !hasText;
+  const paper = template ? "Eigene Vorlage" : PAPERS.find((entry) => entry.id === settings.paper)?.label;
+  const exportSummary = `Vorlage: ${paper} · ${settings.mode === "ink" ? "echte Tinte" : "PDF-Seite"}`;
+  function openExport() {
+    Keyboard.dismiss();
+    setExportError("");
+    setExportOpen(true);
+  }
+  function revealFocusedEditor() {
+    if (!split && input.current?.isFocused()) {
+      settingsScroll.current?.scrollTo({ y: editorTop.current, animated: false });
+    }
+  }
 
-  /* Bausteine; einspaltig stehen sie untereinander (Telefon), auf dem iPad links Vorschau und rechts Einstellungen (Web: .gn-split) */
-  const previewHead = (
-    <View style={styles.previewHead}>
-      <AppText variant="section" accessibilityRole="header">Vorschau.</AppText>
-      <Badge label={ready ? pageCountLabel(pages.length || 1) : "Engine startet …"} />
-      <AppText variant="caption" tone="muted" style={styles.previewMeta}>A4 · entspricht dem Export</AppText>
+  const body = resolveTextStyle("body", { customFonts });
+  const editor = (
+    <View style={styles.editor}>
+      <TextInput
+        ref={input}
+        accessibilityLabel="Dein Text"
+        accessibilityHint="Nutze # für Überschriften und - für Listen."
+        value={text}
+        onChangeText={setText}
+        placeholder="Schreib oder füge deinen Text hier ein."
+        placeholderTextColor={colors.muted}
+        selectionColor={colors.accent}
+        keyboardAppearance={scheme}
+        autoCapitalize="sentences"
+        spellCheck
+        multiline
+        onFocus={revealFocusedEditor}
+        style={[styles.textInput, {
+          height: textHeight, backgroundColor: colors.canvas, color: colors.ink,
+          fontSize: body.fontSize, fontFamily: body.fontFamily,
+        }]}
+      />
+      <AppText variant="caption" tone="muted"># macht eine Überschrift, - eine Aufzählung. Dein Text bleibt auf diesem Gerät.</AppText>
     </View>
   );
-  const pageImages = pages.map((uri, i) => (
-    <Image key={i} source={{ uri }} resizeMode="contain" accessibilityLabel={`Seite ${i + 1} von ${pages.length}`} style={styles.page} />
-  ));
-
-  const textPanel = (
-    <Panel style={styles.panel}>
-      <AppText variant="h4" accessibilityRole="header" style={styles.panelTitle}>Dein Text.</AppText>
-      <Field
-        label="Text" value={text} onChangeText={setText} multiline autoCapitalize="sentences" spellCheck style={[styles.textarea, split && styles.textareaWide]}
-        hint="Zeilen mit # werden zu Überschriften, Zeilen mit - zu Aufzählungen. Dein Text bleibt auf diesem Gerät."
-      />
-    </Panel>
+  const preview = (
+    <View style={[styles.preview, columns && { width: columns.preview }]}>
+      <View style={styles.previewHead}>
+        <AppText variant="section" accessibilityRole="header">Vorschau.</AppText>
+        <Badge label={pages.length ? pageCountLabel(pages.length) : "Wird erstellt …"} />
+        <AppText variant="caption" tone="muted" style={styles.previewMeta}>A4 · entspricht dem Export</AppText>
+      </View>
+      <ScrollView
+        horizontal={!split}
+        style={[styles.stageScroll, { backgroundColor: colors.surface }, split ? styles.fill : { height: compactPageHeight + 2 * spacing.md }]}
+        contentContainerStyle={[styles.stage, split ? styles.wideStage : styles.horizontalStage, !split && pages.length <= 1 && styles.centerPage]}
+        showsHorizontalScrollIndicator={pages.length > 1}
+        accessibilityLabel="Vorschau der Seiten"
+      >
+        {pages.map((uri, i) => (
+          <Image
+            key={i}
+            source={{ uri }}
+            resizeMode="contain"
+            accessibilityLabel={`Seite ${i + 1} von ${pages.length}`}
+            style={[styles.page, !split && { width: compactPageHeight * A4_ASPECT }]}
+          />
+        ))}
+      </ScrollView>
+    </View>
   );
   const stylePanel = (
-    <Panel style={styles.panel}>
-      <AppText variant="h4" accessibilityRole="header" style={styles.panelTitle}>Stil.</AppText>
-
+    <View style={styles.styleOptions}>
       <View style={styles.group}>
         <AppText variant="fieldLabel">Ausgabe</AppText>
-        <View style={styles.pair} accessibilityRole="radiogroup" accessibilityLabel="Ausgabe">
-          <View style={styles.half}><OptionTile title="Echte Tinte" hint="Radieren, auswählen, umfärben. Wie selbst geschrieben." selected={settings.mode === "ink"} onPress={() => patch({ mode: "ink" })} /></View>
-          <View style={styles.half}><OptionTile title="PDF-Seite" hint="Text ist Teil des Seitenhintergrunds." selected={settings.mode === "pdf"} onPress={() => patch({ mode: "pdf" })} /></View>
+        <View style={columnsFonts === 3 ? styles.pair : styles.group} accessibilityRole="radiogroup" accessibilityLabel="Ausgabe">
+          <View style={columnsFonts === 3 && styles.fill}><OptionTile title="Echte Tinte" hint="Radieren, auswählen, umfärben. Wie selbst geschrieben." selected={settings.mode === "ink"} onPress={() => patch({ mode: "ink" })} /></View>
+          <View style={columnsFonts === 3 && styles.fill}><OptionTile title="PDF-Seite" hint="Text ist Teil des Seitenhintergrunds." selected={settings.mode === "pdf"} onPress={() => patch({ mode: "pdf" })} /></View>
         </View>
       </View>
 
       <View style={styles.group}>
-        <AppText variant="fieldLabel">Schrift</AppText>
-        <View accessibilityRole="radiogroup" accessibilityLabel="Schrift" style={styles.group}>
+        <AppText variant="fieldLabel">Handschrift</AppText>
+        <View accessibilityRole="radiogroup" accessibilityLabel="Handschrift" style={styles.group}>
           <Grid columns={columnsFonts}>
             {FONTS.map((f) => <OptionTile key={f} center title={f} selected={settings.font === f} onPress={() => patch({ font: f })} />)}
           </Grid>
@@ -241,10 +304,10 @@ export default function GoodnotesScreen() {
       <StepperRow label="Schriftgröße" valueLabel={rangeLabel("size", settings.size)} onStep={stepFor("size", "size", settings.size)} />
       {settings.mode === "ink" ? <StepperRow label="Strichstärke" valueLabel={rangeLabel("weight", settings.weight)} onStep={stepFor("weight", "weight", settings.weight)} /> : null}
       <StepperRow label="Unregelmäßigkeit" valueLabel={rangeLabel("jitter", settings.jitter)} onStep={stepFor("jitter", "jitter", settings.jitter)} />
-    </Panel>
+    </View>
   );
   const templatePanel = (
-    <Panel style={styles.template}>
+    <View style={[styles.template, { borderTopColor: colors.border }]}>
       <AppText variant="fieldLabel">Eigene Vorlage</AppText>
       <Pressable
         accessibilityRole="button"
@@ -259,21 +322,8 @@ export default function GoodnotesScreen() {
         <AppText variant="bodySm" tone="muted" accessible={false}>{template ? `Geladen: ${template}` : "Nur nötig, wenn du ein anderes Format brauchst. Wähle eine einseitige .goodnotes-Datei."}</AppText>
       </Pressable>
       {template ? <Button title="Entfernen" accessibilityLabel="Eigene Vorlage entfernen" variant="plain" size="sm" onPress={dropTemplate} style={styles.removeTemplate} /> : null}
-    </Panel>
-  );
-  const exportSection = (
-    <View style={styles.section}>
-      <Field label="Dateiname" value={fileName} onChangeText={setFileName} autoCorrect={false} />
-      <ExportList
-        title="Exportieren"
-        rows={[
-          { id: "gn", title: "Als Goodnotes", hint: ".goodnotes-Datei zum Öffnen in Goodnotes", symbol: { ios: "pencil.line", android: "edit", web: "edit" }, accessibilityLabel: "Als Goodnotes exportieren", busy: busy === "goodnotes", disabled: exportBlocked, onPress: () => exportAs("goodnotes") },
-          { id: "pdf", title: "Als PDF", hint: "Zum Drucken und Teilen", symbol: { ios: "doc.text", android: "description", web: "description" }, accessibilityLabel: "Als PDF exportieren", busy: busy === "pdf", disabled: exportBlocked, onPress: () => exportAs("pdf") },
-        ]}
-      />
     </View>
   );
-
   const engine = (
     <View style={styles.hidden} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <WebView<unknown> key={instance} ref={web} originWhitelist={["about:*", "data:*"]} source={{ html: GOODNOTES_HOST_HTML, baseUrl: "about:blank" }}
@@ -284,79 +334,87 @@ export default function GoodnotesScreen() {
   );
 
   return (
-    <>
-      {/* Engine und Handschrift-Blatt stehen neben dem Screen: wechselt er zwischen einer und zwei Spalten, bleiben WebView und Blatt unangetastet */}
+    <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={headerHeight}>
       {engine}
       <Screen
-        title="Goodnotes-Tool." description="Getippter Text wird zu Handschrift. Export als .goodnotes-Datei oder PDF, alles direkt auf deinem Gerät." navigationTitle="Goodnotes-Tool"
-        scroll={!split} wide={split}
+        navigationTitle="Goodnotes-Tool"
+        scroll={false} wide contentStyle={styles.screen}
+        footer={hasText ? (
+          <ExportBar
+            onPress={openExport}
+            disabled={exportBlocked}
+            document={{ name: fileName, onChangeName: setFileName, summary: exportSummary }}
+          />
+        ) : undefined}
       >
         {error ? <FormMessage text={error} onDismiss={() => setError(null)} /> : null}
         {notice ? <Notice text={notice} /> : null}
 
-        {split ? (
-          <View style={styles.panes}>
-            {/* links: Vorschau, bleibt beim Scrollen der Einstellungen stehen (eigener Scrollbereich wie .gn-stage im Web) */}
-            <View style={[styles.previewPane, { flex: PREVIEW_WEIGHT }]}>
-              {previewHead}
-              <ScrollView style={[styles.stageScroll, { backgroundColor: colors.surface }]} contentContainerStyle={styles.stage} accessibilityLabel="Vorschau der Seiten">
-                {pageImages}
-              </ScrollView>
+        <View style={[styles.workspace, columns && { flexDirection: "row", gap: columns.gap }]}>
+          {split ? preview : null}
+          <ScrollView
+            ref={settingsScroll}
+            style={styles.settingsScroll}
+            contentContainerStyle={styles.settings}
+            onLayout={revealFocusedEditor}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          >
+            {!split ? preview : null}
+            <View onLayout={({ nativeEvent: { layout } }) => { editorTop.current = layout.y; }}>
+              <Disclosure title="Dein Text." large defaultOpen>{editor}</Disclosure>
             </View>
-            <ScrollView
-              style={{ flex: SETTINGS_WEIGHT }}
-              contentContainerStyle={styles.settings}
-              keyboardShouldPersistTaps="handled"
-              automaticallyAdjustKeyboardInsets
-            >
-              {textPanel}
+            <Disclosure title="Stil." large>
               {stylePanel}
               {templatePanel}
-              {exportSection}
-            </ScrollView>
-          </View>
-        ) : (
-          <>
-            <View style={styles.section}>
-              {previewHead}
-              {pages.length ? <View style={[styles.stage, styles.stageFlat, { backgroundColor: colors.surface }]}>{pageImages}</View> : null}
-            </View>
-            {textPanel}
-            {stylePanel}
-            {templatePanel}
-            {exportSection}
-          </>
-        )}
+            </Disclosure>
+          </ScrollView>
+        </View>
       </Screen>
+      <ExportMenu
+        visible={exportOpen}
+        onClose={() => setExportOpen(false)}
+        busy={!!busy}
+        error={exportError}
+        rows={[
+          { id: "gn", title: "Als Goodnotes", hint: ".goodnotes-Datei zum Öffnen in Goodnotes", symbol: { ios: "pencil.line", android: "edit", web: "edit" }, accessibilityLabel: "Als Goodnotes exportieren", busy: busy === "goodnotes", disabled: exportBlocked, onPress: () => void exportAs("goodnotes") },
+          { id: "pdf", title: "Als PDF", hint: "Zum Drucken und Teilen", symbol: { ios: "doc.text", android: "description", web: "description" }, accessibilityLabel: "Als PDF exportieren", busy: busy === "pdf", disabled: exportBlocked, onPress: () => void exportAs("pdf") },
+        ]}
+      />
       <HandPad visible={hand.padOpen} packed={hand.packed} ink={settings.ink} cloud={hand.cloud} onSave={hand.save} onDelete={hand.count ? hand.remove : undefined} onClose={() => hand.setPadOpen(false)} />
-    </>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   hidden: { height: 1, width: 1, opacity: 0, position: "absolute" },
-  section: { gap: spacing.md },
-  previewHead: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: spacing.md, rowGap: spacing.sm },
-  previewMeta: { marginLeft: "auto" },
-  stage: { gap: spacing.lg, padding: spacing.lg },
-  stageFlat: { borderRadius: radius.card, borderCurve: "continuous" },
-  panes: { flex: 1, flexDirection: "row", gap: COLUMN_GAP, minHeight: 0 },
-  previewPane: { minWidth: 0, minHeight: 0, gap: spacing.md },
-  stageScroll: { flex: 1, borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden" },
-  settings: { gap: spacing.lg, paddingBottom: spacing.xl },
-  page: { width: "100%", aspectRatio: 595.28 / 841.89, borderRadius: radius.field, backgroundColor: "#fff" },
-  panel: { gap: spacing.xl },
-  panelTitle: { marginBottom: -spacing.sm },
-  textarea: { minHeight: 220 },
-  textareaWide: { minHeight: 260 },
+  screen: { paddingTop: spacing.sm, paddingBottom: spacing.sm, gap: spacing.md },
+  editor: { gap: spacing.sm },
+  textInput: {
+    textAlignVertical: "top", paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+    borderRadius: radius.field, borderCurve: "continuous",
+  },
+  workspace: { flex: 1, minHeight: 0 },
+  preview: { minHeight: 0, gap: spacing.sm },
+  previewHead: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm },
+  previewMeta: { marginLeft: "auto", flexShrink: 1 },
+  stage: { gap: spacing.lg, padding: spacing.md, alignItems: "center" },
+  wideStage: { padding: spacing.lg },
+  horizontalStage: { flexGrow: 1 },
+  centerPage: { justifyContent: "center" },
+  stageScroll: { flexGrow: 0, borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden" },
+  settingsScroll: { flex: 1, minWidth: 0 },
+  settings: { gap: spacing.lg, paddingBottom: spacing.md },
+  page: { width: "100%", aspectRatio: A4_ASPECT, borderRadius: radius.field, backgroundColor: "#fff" },
+  styleOptions: { gap: spacing.xl },
   group: { gap: spacing.sm },
   pair: { flexDirection: "row", gap: spacing.sm },
-  half: { flex: 1 },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" },
   toggle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.lg, minHeight: 48 },
   toggleLabel: { flexShrink: 1 },
-  inks: { flexDirection: "row", gap: spacing.sm },
-  template: { gap: spacing.md, padding: spacing.lg, borderRadius: radius.field },
+  inks: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  template: { gap: spacing.md, marginTop: spacing.md, paddingTop: spacing.lg, borderTopWidth: StyleSheet.hairlineWidth },
   drop: { gap: spacing.xs, alignItems: "flex-start", padding: spacing.lg, borderWidth: 1, borderRadius: radius.field, borderCurve: "continuous" },
   removeTemplate: { alignSelf: "flex-start" },
 });

@@ -10,7 +10,7 @@
  *                `fontSize` ohne `lineHeight` skaliert die Zeilenhöhe der Variante mit.
  *   Screen       title?, description? (Titelblock wie Web `.tool-head`: h1 + bodyLg muted), navigationTitle?,
  *                scroll?, includeTopInset?, contentStyle?  – Seitenrand 16 (≥ 640 Breite: 24), max. 760 breit.
- *   Button       title, variant: primary | secondary (Web „outline“) | soft | plain | danger,
+ *   Button       title, symbol?, variant: primary | accent | secondary (Web „outline“) | soft | plain | danger,
  *                size?: sm (44) | md (48) | lg (56), loading?, disabled?, style?, alle Pressable-Props.
  *                `danger` ist wie im Web eine Ink-Fläche; erkennbar bleibt es über den Zugänglichkeits-Hinweis
  *                („Destruktive Aktion“, überschreibbar via accessibilityHint).
@@ -110,9 +110,10 @@ export interface ScreenProps {
   /** iPad: darf auf breiten Fenstern (ab 900 pt) bis 1120 pt breit werden statt 760 (nur setzen, wenn der Screen die Breite nutzt, z. B. mit zwei Spalten). */
   wide?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
+  footer?: ReactNode;
 }
 
-export function Screen({ children, title, description, navigationTitle, scroll = true, includeTopInset = false, wide = false, contentStyle }: ScreenProps) {
+export function Screen({ children, title, description, navigationTitle, scroll = true, includeTopInset = false, wide = false, contentStyle, footer }: ScreenProps) {
   const { colors } = usePensumTheme();
   const { width } = useWindowDimensions();
   const headerTitle = navigationTitle ?? title;
@@ -142,6 +143,7 @@ export function Screen({ children, title, description, navigationTitle, scroll =
           {contents}
         </ScrollView>
       ) : contents}
+      {footer}
     </SafeAreaView>
   );
 }
@@ -150,7 +152,8 @@ export function Screen({ children, title, description, navigationTitle, scroll =
 
 type ActionProps = Omit<PressableProps, 'children' | 'style'> & {
   title: string;
-  variant?: 'primary' | 'secondary' | 'soft' | 'plain' | 'danger';
+  variant?: 'primary' | 'accent' | 'secondary' | 'soft' | 'plain' | 'danger';
+  symbol?: SymbolViewProps['name'];
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -159,12 +162,13 @@ type ActionProps = Omit<PressableProps, 'children' | 'style'> & {
 const buttonHeight = { sm: 44, md: 48, lg: 56 } as const;
 
 export function Button({
-  title, variant = 'primary', size = 'md', loading = false, disabled = false, style, accessibilityState, ...props
+  title, variant = 'primary', symbol, size = 'md', loading = false, disabled = false, style, accessibilityState, ...props
 }: ActionProps) {
   const { colors } = usePensumTheme();
   const onTint = useContext(TintContext);
   const palette = {
     primary: { bg: colors.ink, pressed: colors.inkSoft, fg: colors.onPrimary, border: 'transparent' },
+    accent: { bg: colors.accentFill, pressed: colors.accentFill, fg: colors.onAccent, border: 'transparent' },
     danger: { bg: colors.ink, pressed: colors.inkSoft, fg: colors.onPrimary, border: 'transparent' },
     secondary: { bg: colors.canvas, pressed: colors.surface, fg: colors.ink, border: colors.border },
     soft: { bg: onTint ? colors.canvas : colors.surface, pressed: colors.border, fg: colors.ink, border: 'transparent' },
@@ -185,13 +189,15 @@ export function Button({
         {
           backgroundColor: pressed ? palette.pressed : palette.bg,
           borderColor: palette.border,
-          opacity: disabled ? 0.5 : pressed && variant === 'plain' ? 0.6 : 1,
+          opacity: disabled ? 0.5 : pressed && variant === 'plain' ? 0.6 : pressed && variant === 'accent' ? 0.82 : 1,
         },
         pressed && variant !== 'plain' && styles.buttonPressed,
         style,
       ]}
     >
-      {loading ? <ActivityIndicator color={palette.fg} accessible={false} /> : null}
+      {loading ? <ActivityIndicator color={palette.fg} accessible={false} /> : symbol ? (
+        <SymbolView name={symbol} size={size === 'sm' ? 16 : 19} tintColor={palette.fg} accessible={false} />
+      ) : null}
       <AppText
         variant="link"
         style={[

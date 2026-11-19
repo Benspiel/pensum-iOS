@@ -1,13 +1,5 @@
-/* Goodnotes – Layout-Entscheidungen für breite Fenster (iPad). Reine Funktionen ohne React Native, deshalb testbar.
- * Web-Vorlage: tools/goodnotes/goodnotes.css (.gn-split: links Vorschau, rechts Einstellungen). Telefon bleibt einspaltig. */
-
-/** Gewichte der beiden Spalten (Vorschau : Einstellungen). */
-export const PREVIEW_WEIGHT = 6;
-export const SETTINGS_WEIGHT = 4;
-/** Abstand zwischen den Spalten in pt. */
-export const COLUMN_GAP = 32;
-/** Innenabstand plus Rand eines Panels (Card: padding 24, Rand 1) je Seite. */
-export const PANEL_INSET = 25;
+const MIN_EDITOR_WIDTH = 440;
+const MIN_PREVIEW_WIDTH = 220;
 
 /** Höchstbreite des Handschrift-Blatts auf dem iPad. */
 export const HAND_PAD_MAX_WIDTH = 720;
@@ -19,21 +11,20 @@ export function isTabletWindow(width: number, height: number, fontScale: number)
   return Math.min(width, height) >= TABLET_SHORT_SIDE && fontScale <= 1.25;
 }
 
-/** Breiten (pt) der beiden Spalten bei der nutzbaren Inhaltsbreite `inner`. */
-export function splitColumnWidths(inner: number, gap: number = COLUMN_GAP): { preview: number; settings: number } {
-  const free = Math.max(0, inner - gap);
-  const preview = Math.floor((free * PREVIEW_WEIGHT) / (PREVIEW_WEIGHT + SETTINGS_WEIGHT));
-  return { preview, settings: free - preview };
+/** Die Vorschau erscheint neben dem Editor nur, wenn beide ausreichend Platz haben. */
+export function previewColumns(inner: number, windowHeight: number, fontScale: number) {
+  const gap = inner >= 960 ? 40 : 16;
+  const columnSpace = inner - gap;
+  const maxPreview = columnSpace - MIN_EDITOR_WIDTH;
+  if (maxPreview < MIN_PREVIEW_WIDTH || windowHeight < 540 || fontScale > 1.25) return undefined;
+  const preferredPreview = Math.round(columnSpace * 1.05 / 2.05);
+  const preview = Math.min(maxPreview, Math.max(MIN_PREVIEW_WIDTH, preferredPreview));
+  return { preview, editor: columnSpace - preview, gap };
 }
 
-/**
- * Spaltenzahl der Kachelraster (Schrift, Papier). Einspaltig wie bisher nach Fensterbreite (Telefon unverändert);
- * in der schmalen Einstellungsspalte nach deren Breite abzüglich Panel-Rand.
- */
-export function optionColumns(windowWidth: number, split: boolean, settingsWidth: number): { fonts: number; papers: number } {
-  if (!split) return { fonts: windowWidth >= 480 ? 3 : 2, papers: windowWidth >= 480 ? 4 : 2 };
-  const inner = settingsWidth - 2 * PANEL_INSET;
-  return { fonts: inner >= 320 ? 3 : 2, papers: inner >= 440 ? 4 : 2 };
+export function optionColumns(width: number, fontScale: number, sectionInset: number): { fonts: number; papers: number } {
+  const inner = (width - 2 * sectionInset) / Math.max(1, fontScale);
+  return { fonts: inner >= 360 ? 3 : 2, papers: inner >= 420 ? 4 : 2 };
 }
 
 /**

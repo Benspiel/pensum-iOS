@@ -260,8 +260,8 @@ export function usageBadges(usage: Usage): string[] {
 export function aiInfoText(o: { hasMap: boolean; today: boolean; usage?: Usage }): string {
   if (!o.hasMap) return '';
   const left = aiLeft(o.usage);
-  if (!o.today) return 'KI-Änderungen gibt es nur für die Mindmap von heute. Diese hier kannst du von Hand bearbeiten.';
-  if (left <= 0) return 'Du hast heute alle KI-Änderungen verbraucht. Morgen sind es wieder 3. Von Hand kannst du weiter ändern.';
+  if (!o.today) return 'KI-Änderungen gibt es nur für die Mindmap von heute.';
+  if (left <= 0) return 'Du hast heute alle KI-Änderungen verbraucht.';
   return `Beschreib in eigenen Worten, was geändert werden soll. Heute sind noch ${left} von ${o.usage?.maxEdits ?? 0} Änderungen frei.`;
 }
 

@@ -1,29 +1,25 @@
-/* Mindmap-Generator – nativer Screen. Vorlage Web: tools/mindmap/index.html + mindmap.css + mindmap.js (Web-Commit 1612dc2).
- * Reihenfolge und Optik wie die Website: Kopf, Nutzungs-Badges, Panel „Mindmap für heute erstellen.“, „Deine Mindmap.“ mit Werkzeugleiste in
- * zwei Gruppen, Zeichenfläche, Schrift/Farbe, Panels „Ausgewählter Punkt.“ und „Mit KI ändern.“, Export-Zeilen.
- * Logik (Baum, Verlauf, Speichern, Zoom) steckt in tree.ts, state.ts, scene.ts – hier nur Oberfläche und Anbindung. */
 import { File, Paths } from 'expo-file-system';
 import { printToFileAsync } from 'expo-print';
 import { usePreventRemove, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { AppState, PixelRatio, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, Keyboard, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { Models } from 'react-native-appwrite';
 import { useSession } from '../../account/session';
 import { databaseId, executeFunction, functionIds, listAllRows, Query, tableIds, tablesDB } from '../../backend';
 import { spacing } from '../../theme';
-import { AppText, Badge, Button, Field, LoadingState, Panel, Screen } from '../../ui';
-import { TwoColumn, useWideLayout } from '../../ui/TwoColumn';
+import { AppText, Button, Field, LoadingState, Screen, Segmented } from '../../ui';
+import { BottomSheet } from '../../ui/BottomSheet';
 import { useStoreDeps } from '../../storage';
 import { confirmAction, consentToGemini, errorText } from '../appwrite-tools/actions';
 import { useAccountGuard } from '../appwrite-tools/account-scope';
 import { createCloudHandStore, type PackedHand } from '../goodnotes/hand-store';
-import { FormMessage, Notice } from '../goodnotes/parts';
+import { ExportBar, ExportMenu } from '../goodnotes/ExportMenu';
+import { FormMessage, InkDot, Notice } from '../goodnotes/parts';
 import { base64ToBytes } from '../goodnotes/protocol';
 import { deleteQuietly } from '../goodnotes/request-queue';
 import { putHandoff } from '../shared/handoff';
-import type { CanvasHandle } from './canvas';
-import { EditorView, MapLibrary, showLibrary } from './editor-view';
+import { MindmapCanvas } from './canvas';
 import { useGoodnotesExporter } from './goodnotes-export';
 import { usableHand, type Hand } from './hand';
 import { HAND_STYLE, STYLE, clampFontScale, layout, scaleStyle } from './layout';
@@ -33,7 +29,6 @@ import {
 } from './scene';
 import * as S from './state';
 import * as T from './tree';
-import { MAP_COLUMN_WEIGHTS, canvasHeightFor, mapColumnWidth, soloPanelMaxWidth } from './wide';
 
 type MapSummary = { id: string; day: string; topic: string };
 type MindmapRow = Models.Row & { topic: string; day: string; data: string };
@@ -41,14 +36,15 @@ type Status = { day: string; usage: S.Usage };
 type CreateResult = Status & { id: string; topic: string; map: unknown };
 type RefineResult = Status & { map: unknown };
 type FontChoice = 'standard' | 'hand';
+type Sheet = 'create' | 'refine' | 'library' | 'appearance' | 'export';
+const unfolded = new Set<string>();
 
 export function MindmapScreen({ userId }: { userId: string }) {
   const router = useRouter();
   const requireAccount = useAccountGuard();
   const { state: session, updatePrefs, registerBeforeLogout } = useSession();
   const deps = useStoreDeps();
-  const { height, fontScale } = useWindowDimensions();
-  const { split, inner } = useWideLayout();
+  const { fontScale } = useWindowDimensions();
   const prefs = session.status === 'account' ? session.user.prefs : undefined;
 
   /* ---- Zustand ---- */
@@ -60,9 +56,6 @@ export function MindmapScreen({ userId }: { userId: string }) {
   const [current, setCurrent] = useState<MapSummary>();
   const [editor, setEditor] = useState<S.EditorState>();
   const editorRef = useRef<S.EditorState | undefined>(undefined);
-  const [nodeText, setNodeText] = useState('');
-  const nodeInput = useRef<ComponentRef<typeof TextInput>>(null);
-  const nodeFocused = useRef(false);
   const [topic, setTopic] = useState('');
   const [notes, setNotes] = useState('');
   const [instruction, setInstruction] = useState('');
@@ -71,6 +64,8 @@ export function MindmapScreen({ userId }: { userId: string }) {
   const [createError, setCreateError] = useState('');
   const [aiError, setAiError] = useState('');
   const [actionError, setActionError] = useState('');
+  const [exportError, setExportError] = useState('');
+  const [sheet, setSheet] = useState<Sheet>();
   const [notice, setNotice] = useState('');
   const [font, setFont] = useState<FontChoice>(prefs?.mmFont === 'hand' ? 'hand' : 'standard');
   const [ink, setInk] = useState<string>(isInk(prefs?.mmInk) ? prefs.mmInk : DEFAULT_INK);
@@ -78,7 +73,7 @@ export function MindmapScreen({ userId }: { userId: string }) {
   const [saveStatus, setSaveStatus] = useState<S.SaveStatus>('saved');
   const [exporting, setExporting] = useState<'goodnotes' | 'pdf' | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const canvas = useRef<CanvasHandle>(null);
+  const [canvasReset, setCanvasReset] = useState(0);
   const goodnotes = useGoodnotesExporter();
 
   const setEditorNow = useCallback((next: S.EditorState | undefined) => { editorRef.current = next; setEditor(next); }, []);
@@ -110,7 +105,8 @@ export function MindmapScreen({ userId }: { userId: string }) {
     if (!root) throw new Error('Die Mindmap ist beschädigt.');
     setCurrent({ id: row.$id, day: row.day, topic: row.topic });
     setEditorNow(S.openEditor(root));
-    setNodeText(root.text);
+    setInstruction('');
+    setAiError('');
     setActionError('');
   }, [requireAccount, saver, setEditorNow]);
 
@@ -170,67 +166,17 @@ export function MindmapScreen({ userId }: { userId: string }) {
   const useHandFont = font === 'hand' && !!hand;
   const scale = clampFontScale(fontScale);
   const root = editor?.root;
-  const collapsed = editor?.collapsed;
   const scene = useMemo(() => {
-    if (!root || !collapsed) return undefined;
+    if (!root) return undefined;
     const lay = layout(
       root,
       useHandFont && hand ? measureWithHand(hand) : measureInter,
       scaleStyle(useHandFont ? HAND_STYLE : STYLE, scale),
-      collapsed,
+      unfolded,
     );
     return buildScene(lay, useHandFont ? hand : null);
-  }, [root, collapsed, hand, scale, useHandFont]);
-  const tools = editor ? S.toolState(editor) : undefined;
+  }, [root, hand, scale, useHandFont]);
   const today = !!current && !!status && current.day === status.day;
-  const canvasHeight = canvasHeightFor(height, split, scene ? { sceneWidth: scene.width, sceneHeight: scene.height, canvasWidth: mapColumnWidth(inner, spacing.xl) } : undefined);
-  const bigText = PixelRatio.getFontScale() > 1.3;
-
-  // Textfeld folgt der Auswahl, solange man nicht gerade darin tippt (Web: renderTools)
-  useEffect(() => {
-    if (!editor || nodeFocused.current) return;
-    setNodeText(T.find(editor.root, editor.selectedId)?.node.text ?? '');
-  }, [editor]);
-
-  /* ---- Bearbeiten ---- */
-  const mutate = useCallback((fn: (state: S.EditorState) => { state: S.EditorState; changed: boolean } | S.EditorState) => {
-    const before = editorRef.current;
-    if (!before || !current) return;
-    const result = fn(before);
-    const { state: next, changed } = 'changed' in result ? result : { state: result, changed: false };
-    setEditorNow(next);
-    if (next.error !== before.error) setActionError(next.error);
-    if (changed || next.root !== before.root) {
-      saver.schedule(current.id, next.root);
-      const name = S.topicOf(next.root);
-      setList((value) => value.map((entry) => entry.id === current.id ? { ...entry, topic: name } : entry));
-    }
-  }, [current, saver, setEditorNow]);
-
-  const focusText = () => { setTimeout(() => nodeInput.current?.focus(), 60); };
-  const select = (id: string) => { mutate((s) => S.selectNode(s, id)); };
-  const edit = (result: (s: S.EditorState) => T.EditResult, then?: () => void) => {
-    mutate((s) => S.applyChange(s, result(s)));
-    then?.();
-  };
-
-  function onNodeText(value: string) {
-    setNodeText(value);
-    const state = editorRef.current;
-    if (!state) return;
-    const result = T.rename(state.root, state.selectedId, value);
-    if (result.error) { setActionError(result.error); return; }
-    mutate((s) => S.applyChange(s, result, { coalesce: `text:${s.selectedId}`, select: false }));
-  }
-
-  function onNodeBlur() {
-    nodeFocused.current = false;
-    const state = editorRef.current;
-    if (!state) return;
-    const hit = T.find(state.root, state.selectedId);
-    if (hit && !hit.node.text.trim()) mutate((s) => S.applyChange(s, T.rename(s.root, s.selectedId, 'Punkt'), { select: false }));
-    else setNodeText(hit?.node.text ?? '');
-  }
 
   /* ---- KI und Verwaltung ---- */
   const runAi = useCallback(async (fn: () => Promise<void>, setError: (text: string) => void) => {
@@ -252,6 +198,7 @@ export function MindmapScreen({ userId }: { userId: string }) {
   function create() {
     const text = topic.trim();
     if (!text) { setCreateError('Gib ein Thema ein.'); return; }
+    Keyboard.dismiss();
     void runAi(async () => {
       if (!await consentToGemini('Dein Thema mit Hinweisen')) return;
       requireAccount();
@@ -264,7 +211,7 @@ export function MindmapScreen({ userId }: { userId: string }) {
       setList((value) => [summary, ...value.filter((entry) => entry.id !== summary.id)]);
       setCurrent(summary);
       setEditorNow(S.openEditor(created));
-      setNodeText(created.text);
+      setSheet(undefined);
       setTopic('');
       setNotes('');
       setNotice('Mindmap erstellt.');
@@ -276,17 +223,23 @@ export function MindmapScreen({ userId }: { userId: string }) {
     if (!text) { setAiError('Schreib, was die KI ändern soll.'); return; }
     if (!editor || !current || !today || S.aiLeft(status?.usage) <= 0) return;
     const id = current.id;
+    Keyboard.dismiss();
     void runAi(async () => {
       if (!await consentToGemini('Deine Mindmap und die Änderungsanweisung')) return;
       await saver.flush();
       requireAccount();
       const result = await executeFunction<RefineResult>(functionIds.mindmap, { action: 'refine', instruction: text, map: editorRef.current?.root ?? editor.root });
       setStatus({ day: result.day, usage: result.usage });
-      if (!editorRef.current) return;
+      const before = editorRef.current;
+      if (!before) return;
       const map = T.sanitize(result.map);
       if (!map) throw new Error('Die KI-Antwort war nicht brauchbar.');
       if (id !== currentId.current) return; // in der Zwischenzeit gewechselt
-      mutate((s) => S.applyAiMap(s, map));
+      const { state: next } = S.applyAiMap(before, map);
+      setEditorNow(next);
+      saver.schedule(id, next.root);
+      setCanvasReset((value) => value + 1);
+      setSheet(undefined);
       setInstruction('');
       setNotice('Die KI hat die Mindmap geändert.');
     }, setAiError);
@@ -312,12 +265,13 @@ export function MindmapScreen({ userId }: { userId: string }) {
       setEditorNow(undefined);
       const next = rest.find((entry) => entry.day === status?.day) ?? rest[0];
       if (next) await openMap(next);
+      else setSheet(undefined);
     }, setActionError);
   }
 
   function switchMap(summary: MapSummary) {
     if (summary.id === current?.id || busy) return;
-    void runAi(() => openMap(summary), setActionError);
+    void runAi(async () => { await openMap(summary); setSheet(undefined); }, setActionError);
   }
 
   /* ---- Schrift und Farbe (werden wie im Web im Konto gemerkt) ---- */
@@ -347,7 +301,7 @@ export function MindmapScreen({ userId }: { userId: string }) {
 
   async function exportPdf() {
     if (!scene || !editor || !current || exporting) return;
-    setExporting('pdf'); setActionError(''); setNotice('');
+    setExporting('pdf'); setExportError(''); setNotice('');
     try {
       if (!await Sharing.isAvailableAsync()) throw new Error('Teilen ist auf diesem Gerät nicht verfügbar.');
       const page = pdfDocument(scene, ink);
@@ -359,142 +313,149 @@ export function MindmapScreen({ userId }: { userId: string }) {
         deleteQuietly(new File(printed.uri));
       }
       setNotice('PDF bereit zum Teilen.');
-    } catch (reason) { setActionError(errorText(reason)); }
+      setSheet(undefined);
+    } catch (reason) { setExportError(errorText(reason)); }
     finally { setExporting(null); }
   }
 
   async function exportGoodnotes() {
     if (!scene || !editor || !current || exporting) return;
-    setExporting('goodnotes'); setActionError(''); setNotice('');
+    setExporting('goodnotes'); setExportError(''); setNotice('');
     try {
       if (!await Sharing.isAvailableAsync()) throw new Error('Teilen ist auf diesem Gerät nicht verfügbar.');
       const strokes = goodnotesStrokes(scene);
       const base64 = await goodnotes.run({ draw: drawList(scene), ink, place: goodnotesPlacement(scene), strokes });
       await shareBytes(base64, `${S.exportBase(editor.root, current.day)}.goodnotes`, 'application/octet-stream');
       setNotice(strokes ? 'Handschrift als Stiftstriche. Jetzt in Goodnotes öffnen.' : 'Als Bild exportiert. Für Striche wähle die eigene Handschrift.');
-    } catch (reason) { setActionError(errorText(reason)); }
+      setSheet(undefined);
+    } catch (reason) { setExportError(errorText(reason)); }
     finally { setExporting(null); }
   }
 
-  const exportBlocked = !scene || !!exporting;
   const canCreate = S.canCreateToday(status?.usage);
-  const maps = list.map((entry) => ({ id: entry.id, label: S.mapOptionLabel(entry, status?.day) }));
-  const canDelete = !today && !!status;
-  // iPad quer: „Mindmap für heute erstellen.“ links, „Meine Mindmaps.“ rechts; ohne Erstellen steht die Liste in der Seitenleiste des Editors
-  const libraryAbove = split && canCreate && showLibrary(maps, canDelete);
-  const switchTo = (id: string) => { const entry = list.find((item) => item.id === id); if (entry) switchMap(entry); };
-
-  const createPanel = (
-    <Panel style={styles.panel}>
-      <AppText variant="h4" accessibilityRole="header">Mindmap für heute erstellen.</AppText>
-      <Field label="Thema" value={topic} onChangeText={(v) => { setTopic(v); setCreateError(''); }} maxLength={120} editable={!busy} autoCorrect={false} placeholder="z. B. Die Beatles" returnKeyType="done" />
-      <Field label="Hinweise (optional)" value={notes} onChangeText={setNotes} maxLength={500} multiline editable={!busy} placeholder="z. B. für eine Klausur in Klasse 9, Schwerpunkt Entstehung und Einfluss" />
-      {createError ? <FormMessage text={createError} /> : null}
-      <Button title={busy ? 'KI arbeitet …' : 'Mindmap erstellen'} loading={busy} disabled={busy} onPress={create} />
-      <AppText variant="bodySm" tone="muted">Du kannst pro Tag eine Mindmap erstellen. Sie lässt sich danach 3-mal von der KI verändern.</AppText>
-    </Panel>
-  );
+  const canRefine = today && S.aiLeft(status?.usage) > 0;
+  const exportBlocked = !scene || busy || !!exporting;
+  const closeSheet = () => setSheet(undefined);
+  function openExport() {
+    setExportError('');
+    setSheet('export');
+  }
 
   return (
     <Screen
       wide
-      title="Mindmap-Generator."
+      scroll={false}
       navigationTitle="Mindmap-Generator"
-      description="Nenn ein Thema, die KI baut die Mindmap. Danach änderst du sie mit KI oder direkt im Editor, in Standardschrift oder in deiner eigenen Handschrift."
+      contentStyle={styles.screen}
+      footer={scene ? (
+        <ExportBar onPress={openExport} disabled={exportBlocked} actions={[
+          { title: 'Zentrieren', symbol: { ios: 'viewfinder', android: 'center_focus_strong', web: 'center_focus_strong' },
+            onPress: () => setCanvasReset((value) => value + 1) },
+          { title: 'Darstellung', symbol: { ios: 'slider.horizontal.3', android: 'tune', web: 'tune' },
+            onPress: () => setSheet('appearance') },
+        ]} />
+      ) : undefined}
     >
       {goodnotes.element}
-      {notice ? <Notice text={notice} /> : null}
       {statusError ? <FormMessage text={statusError} onDismiss={() => setAttempt((n) => n + 1)} /> : null}
       {listError ? <FormMessage text={`Deine Mindmaps konnten nicht geladen werden. ${listError}`} onDismiss={() => setAttempt((n) => n + 1)} /> : null}
+      {notice ? <Notice text={notice} /> : null}
+      {saveStatus === 'error' ? (
+        <FormMessage text="Die Änderung konnte noch nicht gespeichert werden. Zum Wiederholen antippen." onDismiss={() => void saver.flush()} />
+      ) : null}
 
-      {status ? (
-        <View style={styles.badges} accessibilityLiveRegion="polite">
-          {S.usageBadges(status.usage).map((label) => <Badge key={label} label={label} />)}
+      {scene && current ? (
+        <>
+          <View style={styles.toolbar}>
+            <AppText variant="h4" numberOfLines={2} accessibilityRole="header" style={styles.mapTitle}>{root?.text || current.topic}</AppText>
+            <View style={styles.actions}>
+              <Button title="Meine Mindmaps" variant="soft" size="sm" disabled={busy} onPress={() => setSheet('library')} />
+              {canCreate ? <Button title="Mindmap erstellen" size="sm" disabled={busy} onPress={() => setSheet('create')} /> : null}
+              {today ? <Button title="Mit KI ändern" size="sm" disabled={busy || !canRefine} onPress={() => setSheet('refine')} /> : null}
+            </View>
+            {today && !canRefine ? <AppText variant="caption" tone="muted">KI-Änderungen für heute aufgebraucht</AppText> : null}
+          </View>
+          <MindmapCanvas key={`${current.id}:${canvasReset}`} scene={scene} ink={ink} />
+        </>
+      ) : (
+        <View style={styles.empty}>
+          {loading || (!status && !statusError) ? <LoadingState title="Mindmaps werden geladen" /> : (
+            <>
+              <AppText variant="h2" accessibilityRole="header">Deine Mindmaps</AppText>
+              {canCreate ? <Button title="Mindmap erstellen" disabled={busy} onPress={() => setSheet('create')} /> : (
+                status ? <AppText tone="muted">Du kannst morgen wieder eine neue Mindmap erstellen.</AppText> : null
+              )}
+              {list.length ? <Button title="Meine Mindmaps öffnen" variant="secondary" disabled={busy} onPress={() => setSheet('library')} /> : null}
+            </>
+          )}
         </View>
-      ) : null}
+      )}
 
-      {canCreate ? (split ? (
-        <TwoColumn
-          split
-          primaryWeight={MAP_COLUMN_WEIGHTS.primary}
-          secondaryWeight={MAP_COLUMN_WEIGHTS.secondary}
-          primary={<View style={{ maxWidth: soloPanelMaxWidth(split, libraryAbove), width: '100%' }}>{createPanel}</View>}
-          secondary={libraryAbove ? (
-            <MapLibrary maps={maps} currentId={current?.id ?? ''} canDelete={canDelete} busy={busy} switchMap={switchTo} removeMap={removeMap} panel />
-          ) : undefined}
-        />
-      ) : createPanel) : null}
+      <BottomSheet visible={sheet === 'create'} title="Mindmap erstellen" busy={busy} onClose={closeSheet}>
+        <Field label="Thema" value={topic} onChangeText={(value) => { setTopic(value); setCreateError(''); }} maxLength={120} editable={!busy} placeholder="z. B. Photosynthese" />
+        <Field label="Hinweise (optional)" value={notes} onChangeText={setNotes} maxLength={500} multiline editable={!busy} placeholder="z. B. für eine Klausur in Klasse 9" />
+        {createError ? <FormMessage text={createError} /> : null}
+        <Button title={busy ? 'KI arbeitet …' : 'Mindmap erstellen'} loading={busy} disabled={!canCreate} onPress={create} />
+      </BottomSheet>
 
-      {loading && !editor ? <LoadingState title="Mindmaps werden geladen" /> : null}
+      <BottomSheet visible={sheet === 'refine'} title="Mit KI ändern" busy={busy} onClose={closeSheet}>
+        <AppText variant="bodySm" tone="muted">{S.aiInfoText({ hasMap: Boolean(root), today, usage: status?.usage })}</AppText>
+        <Field label="Was soll sich ändern?" value={instruction} onChangeText={(value) => { setInstruction(value); setAiError(''); }}
+          maxLength={500} multiline editable={!busy && canRefine} placeholder="z. B. Erkläre die Lichtreaktion ausführlicher" />
+        {aiError ? <FormMessage text={aiError} /> : null}
+        <Button title={busy ? 'KI arbeitet …' : 'Änderung anwenden'} loading={busy} disabled={!canRefine} onPress={refine} />
+      </BottomSheet>
 
-      {editor && current && scene && tools ? (
-        <EditorView
-          scene={scene}
-          tools={tools}
-          ink={ink}
-          selectedId={editor.selectedId}
-          fitKey={`${current.id}|${useHandFont ? 'hand' : 'std'}|${scale}`}
-          canvasHeight={canvasHeight}
-          split={split}
-          libraryAbove={libraryAbove}
-          bigText={bigText}
-          canvasRef={canvas}
-          maps={maps}
-          currentId={current.id}
-          canDelete={canDelete}
-          busy={busy}
-          hasHand={!!hand}
-          useHandFont={useHandFont}
-          saveText={S.saveStateText(saveStatus, true)}
-          nodeText={nodeText}
-          nodeInput={nodeInput}
-          actionError={actionError}
-          ai={{
-            info: S.aiInfoText({ hasMap: true, today, usage: status?.usage }),
-            label: S.aiButtonLabel({ busy, today, usage: status?.usage }),
-            disabled: busy || !today || S.aiLeft(status?.usage) <= 0,
-            editable: today && !busy && S.aiLeft(status?.usage) > 0,
-            value: instruction,
-            error: aiError,
-          }}
-          exporting={exporting}
-          exportBlocked={exportBlocked}
-          on={{
-            switchMap: switchTo,
-            removeMap,
-            addChild: () => edit((s) => T.addChild(s.root, s.selectedId), focusText),
-            addSibling: () => edit((s) => T.addSibling(s.root, s.selectedId), focusText),
-            moveUp: () => edit((s) => T.move(s.root, s.selectedId, -1)),
-            moveDown: () => edit((s) => T.move(s.root, s.selectedId, 1)),
-            removeNode: () => edit((s) => T.remove(s.root, s.selectedId)),
-            undo: () => mutate((s) => S.stepHistory(s, 'undo')),
-            redo: () => mutate((s) => S.stepHistory(s, 'redo')),
-            foldNode: () => mutate((s) => S.toggleFold(s, s.selectedId)),
-            foldAll: () => mutate((s) => S.foldAll(s)),
-            unfoldAll: () => mutate((s) => S.unfoldAll(s)),
-            select,
-            edit: () => nodeInput.current?.focus(),
-            toggleFold: (id) => mutate((s) => S.toggleFold(s, id)),
-            chooseFont,
-            chooseInk,
-            openHandTool: () => router.push('/tools/goodnotes'),
-            nodeText: onNodeText,
-            nodeFocus: () => { nodeFocused.current = true; },
-            nodeBlur: onNodeBlur,
-            clearActionError: () => setActionError(''),
-            instruction: (text) => { setInstruction(text); setAiError(''); },
-            refine,
-            exportGoodnotes: () => void exportGoodnotes(),
-            exportPdf: () => void exportPdf(),
-            toGoodnotesTool: () => { putHandoff(T.formatTree(editor.root), editor.root.text); router.push('/tools/goodnotes'); },
-          }}
-        />
-      ) : null}
+      <BottomSheet visible={sheet === 'library'} title="Meine Mindmaps" busy={busy} onClose={closeSheet}>
+        {actionError ? <FormMessage text={actionError} onDismiss={() => setActionError('')} /> : null}
+        {list.map((entry) => (
+          <Button key={entry.id} title={S.mapOptionLabel(entry, status?.day)} variant={entry.id === current?.id ? 'soft' : 'secondary'}
+            accessibilityState={{ selected: entry.id === current?.id }} disabled={busy} onPress={() => {
+              if (entry.id === current?.id) closeSheet();
+              else switchMap(entry);
+            }} />
+        ))}
+        {current && !today && status ? <Button title="Diese Mindmap löschen" variant="plain" disabled={busy} onPress={removeMap} /> : null}
+      </BottomSheet>
+
+      <BottomSheet visible={sheet === 'appearance'} title="Darstellung" onClose={closeSheet}>
+        <AppText variant="fieldLabel">Schrift</AppText>
+        <Segmented label="Schrift" value={useHandFont ? 'hand' : 'standard'} onChange={chooseFont} options={[
+          { id: 'standard', label: 'Standardschrift' },
+          { id: 'hand', label: 'Eigene Handschrift', disabled: !hand },
+        ]} />
+        {!hand ? <Button title="Handschrift in Goodnotes einrichten" variant="plain" size="sm" onPress={() => {
+          closeSheet();
+          router.push('/tools/goodnotes');
+        }} /> : null}
+        <AppText variant="fieldLabel">Farbe</AppText>
+        <View accessibilityRole="radiogroup" accessibilityLabel="Farbe" style={styles.inks}>
+          {INKS.map((entry) => <InkDot key={entry.id} color={entry.id} label={entry.name} selected={entry.id === ink} onPress={() => chooseInk(entry.id)} />)}
+        </View>
+      </BottomSheet>
+
+      <ExportMenu visible={sheet === 'export'} onClose={closeSheet} busy={!!exporting} error={exportError} rows={[
+        { id: 'goodnotes', title: 'Als Goodnotes', hint: '.goodnotes-Datei zum Öffnen in Goodnotes', symbol: 'square.and.arrow.up',
+          accessibilityLabel: 'Als Goodnotes exportieren', busy: exporting === 'goodnotes', disabled: exportBlocked, onPress: () => void exportGoodnotes() },
+        { id: 'pdf', title: 'Als PDF', hint: 'Zum Drucken und Teilen', symbol: 'doc.richtext',
+          accessibilityLabel: 'Als PDF exportieren', busy: exporting === 'pdf', disabled: exportBlocked, onPress: () => void exportPdf() },
+        { id: 'tool', title: 'In Goodnotes-Tool übernehmen', hint: 'Die Punkte dort als Text öffnen', symbol: 'pencil.and.scribble',
+          accessibilityLabel: 'Text in Goodnotes-Tool übernehmen', busy: false, disabled: exportBlocked, onPress: () => {
+            if (!root) return;
+            putHandoff(T.formatTree(root), root.text);
+            setSheet(undefined);
+            router.push('/tools/goodnotes');
+          } },
+      ]} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  panel: { gap: spacing.lg },
+  screen: { gap: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.sm },
+  toolbar: { gap: spacing.sm, paddingBottom: spacing.xs },
+  mapTitle: { flexShrink: 1 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
+  inks: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  empty: { flex: 1, gap: spacing.lg, alignItems: 'center', justifyContent: 'center' },
 });

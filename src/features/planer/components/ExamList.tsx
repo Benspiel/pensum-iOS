@@ -6,7 +6,7 @@ import { radius, spacing, usePensumTheme } from "../../../theme";
 import { splitExams, type PlanItem } from "../core";
 import { resolveDeck, type DeckSummary } from "../links";
 import { EXAM_EMPTY, examCardModel } from "../model";
-import { Disclosure } from "./Disclosure";
+import { Disclosure } from "../../../ui/Disclosure";
 import { Empty } from "./Empty";
 import { IconButton } from "./IconButton";
 
