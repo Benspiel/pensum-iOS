@@ -5,10 +5,11 @@ const bundleIdentifier = process.env.EXPO_PUBLIC_IOS_BUNDLE_ID || developmentBun
 const easProjectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
 const appleTeamId = process.env.EXPO_PUBLIC_APPLE_TEAM_ID;
 const owner = process.env.EXPO_PUBLIC_EXPO_OWNER;
+const slug = process.env.EXPO_PUBLIC_EAS_PROJECT_SLUG || 'pensum-ios';
 
 const config: ExpoConfig = {
   name: 'Pensum',
-  slug: 'pensum-ios',
+  slug,
   version: '0.1.0',
   orientation: 'default',
   scheme: ['pensum', 'appwrite-callback-6af569a7000d660f3559'],
@@ -24,6 +25,7 @@ const config: ExpoConfig = {
   plugins: [
     'expo-router',
     'expo-font',
+    '@react-native-community/datetimepicker',
     ['expo-secure-store', { faceIDPermission: false }],
     [
       'expo-image-picker',

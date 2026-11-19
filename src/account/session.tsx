@@ -17,6 +17,7 @@ import { AppState } from 'react-native';
 import { type Models, OAuthProvider } from 'react-native-appwrite';
 import { account, client, executeFunction, functionIds, ID, Query, teams } from '../backend';
 import { googleAuthEnabled, teamIds } from '../backend/config';
+import { takeHandoff } from '../features/shared/handoff';
 import { asPensumError, statusCode } from '../backend/errors';
 import {
   noToolAccess, PensumError, type SessionState, type SessionUser, type ToolAccess,
@@ -60,7 +61,8 @@ interface SessionContextValue {
   requestEmailVerification(): Promise<void>;
   dismissEmailLink(): void;
   updatePrefs(patch: Record<string, unknown>): Promise<void>;
-  logout(): Promise<void>;
+  registerBeforeLogout(flush: () => Promise<unknown>): () => void;
+  logout(options?: { discardUnsaved?: boolean; everywhere?: boolean }): Promise<void>;
   deleteAccount(): Promise<void>;
 }
 
@@ -119,6 +121,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const activeScope = useRef<AccountScope | null>(null);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const handledOAuthNonce = useRef<string | null>(null);
+  const beforeLogout = useRef(new Set<() => Promise<unknown>>());
 
   // Serialize changes to the shared SDK credential and its SecureStore record.
   const exclusive = useCallback(<T,>(operation: () => Promise<T>): Promise<T> => {
@@ -130,6 +133,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const publish = useCallback((next: SessionState, nextAccess: ToolAccess = noToolAccess) => {
     const userId = next.status === 'account' ? next.user.id : null;
     if (userId !== (activeScope.current?.userId ?? null)) {
+      takeHandoff();
       const nextScope: AccountScope | null = userId
         ? { userId, isCurrent: () => activeScope.current === nextScope }
         : null;
@@ -148,6 +152,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     client.setSession('');
     // Invalidate pending account writes and results before revoking the stored credential.
     activeScope.current = null;
+    takeHandoff();
     setEmailLink(null);
     setOAuthError(null);
     clearAccountExportCache();
@@ -451,7 +456,28 @@ export function SessionProvider({ children }: PropsWithChildren) {
     await restore();
   }), [exclusive, restore]);
 
-  const logout = useCallback(() => exclusive(() => clearSession(true)), [clearSession, exclusive]);
+  const registerBeforeLogout = useCallback((flush: () => Promise<unknown>) => {
+    beforeLogout.current.add(flush);
+    return () => { beforeLogout.current.delete(flush); };
+  }, []);
+
+  const logout = useCallback((options?: { discardUnsaved?: boolean; everywhere?: boolean }) => exclusive(async () => {
+    if (!options?.discardUnsaved && beforeLogout.current.size) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          Promise.all([...beforeLogout.current].map((flush) => flush())),
+          new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('save timeout')), 5000); }),
+        ]);
+      } catch (error) {
+        throw new PensumError('storage', 'Offene Änderungen konnten nicht vollständig gespeichert werden.', undefined, { cause: error });
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
+    }
+    if (options?.everywhere) await account.deleteSessions();
+    await clearSession(!options?.everywhere);
+  }), [clearSession, exclusive]);
 
   const deleteAccount = useCallback(() => exclusive(async () => {
     if (!activeScope.current) throw currentUserChanged();
@@ -463,10 +489,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const value = useMemo<SessionContextValue>(() => ({
     state, access, scope, emailLink, oauthError, refresh, signIn, register, resendCode, confirmCode,
     signInWithGoogle, startRecovery, finishRecovery, requestRecoveryLink, finishEmailLink,
-    requestEmailVerification, dismissEmailLink, updatePrefs, logout, deleteAccount,
+    requestEmailVerification, dismissEmailLink, updatePrefs, registerBeforeLogout, logout, deleteAccount,
   }), [state, access, scope, emailLink, oauthError, refresh, signIn, register, resendCode, confirmCode,
     signInWithGoogle, startRecovery, finishRecovery, requestRecoveryLink, finishEmailLink,
-    requestEmailVerification, dismissEmailLink, updatePrefs, logout, deleteAccount]);
+    requestEmailVerification, dismissEmailLink, updatePrefs, registerBeforeLogout, logout, deleteAccount]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

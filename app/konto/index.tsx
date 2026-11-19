@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Linking, StyleSheet, Switch, View } from 'react-native';
 import { account } from '../../src/backend';
 import { googleAuthEnabled } from '../../src/backend/config';
 import { PensumError, type SessionUser } from '../../src/contracts';
@@ -11,14 +11,34 @@ import {
 import { type AccountScope, type EmailCode, useSession } from '../../src/account/session';
 import { AppText, Button, Card, ErrorState, Field, LoadingState, Screen, ThemeSelector } from '../../src/ui';
 
+const legalPages = [
+  { title: 'Datenschutz', url: 'https://pensum-omega.vercel.app/datenschutz/' },
+  { title: 'Nutzungsbedingungen', url: 'https://pensum-omega.vercel.app/nutzungsbedingungen/' },
+  { title: 'Impressum', url: 'https://pensum-omega.vercel.app/impressum/' },
+] as const;
+
+function LegalLinks() {
+  const action = useAccountAction();
+  return (
+    <Card>
+      {legalPages.map(({ title, url }) => (
+        <Button key={url} title={title} variant="plain" disabled={action.busy}
+          onPress={() => void action.run(() => Linking.openURL(url))} />
+      ))}
+      <Notice notice={action.notice} />
+    </Card>
+  );
+}
+
 export default function AccountScreen() {
   const { state, scope, refresh, logout } = useSession();
   if (state.status === 'loading') return <Screen title="Konto"><LoadingState title="Konto wird geprüft …" /></Screen>;
   if (state.status === 'error') return (
     <Screen title="Konto">
       <ErrorState message={state.error.message} onRetry={() => void refresh()} />
-      <Button title="Als Gast fortfahren" variant="secondary" onPress={() => void logout()} />
+      <Button title="Als Gast fortfahren" variant="secondary" onPress={() => void logout({ discardUnsaved: true }).catch(() => undefined)} />
       <ThemeSelector />
+      <LegalLinks />
     </Screen>
   );
   if (state.status === 'account' && scope) {
@@ -32,12 +52,14 @@ function GuestAccount() {
   const session = useSession();
   const action = useAccountAction();
   const [registering, setRegistering] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState<EmailCode | null>(null);
   const [secret, setSecret] = useState('');
   const submit = () => void action.run(async () => {
+    if (registering && !ageConfirmed) return;
     const input = { email: email.trim(), password };
     const result = registering ? await session.register({ ...input, name }) : await session.signIn(input);
     setPassword('');
@@ -73,14 +95,24 @@ function GuestAccount() {
           textContentType="emailAddress" autoCorrect={false} autoCapitalize="none" />
         <Field label="Passwort" value={password} onChangeText={setPassword} secureTextEntry
           textContentType={registering ? 'newPassword' : 'password'} autoCapitalize="none" autoCorrect={false} />
+        {registering && (
+          <View style={styles.ageConfirmation}>
+            <AppText style={styles.ageLabel}>Ich bin mindestens 16 Jahre alt.</AppText>
+            <Switch accessibilityLabel="Ich bin mindestens 16 Jahre alt" value={ageConfirmed}
+              disabled={action.busy} onValueChange={setAgeConfirmed} />
+          </View>
+        )}
         <Button title={registering ? 'Konto erstellen' : 'Anmelden'} loading={action.busy}
-          disabled={!email.trim() || password.length < (registering ? 8 : 1)} onPress={submit} />
+          disabled={!email.trim() || password.length < (registering ? 8 : 1) || (registering && !ageConfirmed)} onPress={submit} />
         <Button title={registering ? 'Zur Anmeldung' : 'Konto erstellen'} disabled={action.busy} variant="secondary"
-          onPress={() => { setRegistering(!registering); setPassword(''); action.reset(); }} />
+          onPress={() => { setRegistering(!registering); setAgeConfirmed(false); setPassword(''); action.reset(); }} />
         <Button title="Passwort vergessen?" variant="plain" disabled={action.busy}
           onPress={() => router.push('/auth/recover')} />
         {googleAuthEnabled ? <Button title="Mit Google anmelden" variant="secondary" disabled={action.busy}
-          onPress={() => void action.run(session.signInWithGoogle)} /> : null}
+          onPress={() => Alert.alert('Mit Google anmelden', 'Ein neues Pensum-Konto ist ab 16 Jahren möglich.', [
+            { text: 'Abbrechen', style: 'cancel' },
+            { text: 'Weiter', onPress: () => void action.run(session.signInWithGoogle) },
+          ])} /> : null}
         <Notice notice={action.notice ?? (session.oauthError ? { error: true, message: session.oauthError.message } : null)} />
       </Card>
       <Card>
@@ -89,6 +121,7 @@ function GuestAccount() {
         <Button title="Werkzeuge öffnen" variant="secondary" disabled={action.busy} onPress={() => router.replace('/')} />
       </Card>
       <ThemeSelector />
+      <LegalLinks />
     </Screen>
   );
 }
@@ -112,6 +145,15 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
   const [devices, setDevices] = useState<Awaited<ReturnType<typeof getAccountDevices>> | null>(null);
   const [identity, setIdentity] = useState<Awaited<ReturnType<typeof getGoogleIdentity>> | undefined>(undefined);
   const disabled = offline || action.busy;
+  async function logout(everywhere = false) {
+    try {
+      await session.logout({ everywhere });
+    } catch (error) {
+      if (!(error instanceof PensumError) || error.code !== 'storage' || !scope.isCurrent()) throw error;
+      ask('Trotzdem abmelden?', error.message + ' Beim Abmelden können diese Änderungen verloren gehen.', 'Trotzdem abmelden',
+        () => void action.run(() => session.logout({ everywhere, discardUnsaved: true })));
+    }
+  }
   const endOtherDevices = async () => {
     const currentDevices = await getAccountDevices(scope);
     for (const device of currentDevices.filter((device) => !device.current)) {
@@ -133,10 +175,11 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
         {!user.emailVerified ? <Button title="Bestätigungslink senden" variant="secondary" disabled={disabled}
           onPress={() => void action.run(session.requestEmailVerification, 'Bestätigungslink gesendet.')} /> : null}
         <Button title="Abmelden" variant="secondary" disabled={action.busy}
-          onPress={() => void action.run(session.logout)} />
+          onPress={() => void action.run(() => logout())} />
         <Notice notice={action.notice} />
       </Card>
       <ThemeSelector />
+      <LegalLinks />
       <Card>
         <AppText variant="section">Profil</AppText>
         <Field label="Name" value={name} onChangeText={setName} textContentType="name" maxLength={128} />
@@ -209,11 +252,7 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
         ) : null}
         <Button title="Überall abmelden" variant="secondary" disabled={disabled}
           onPress={() => ask('Überall abmelden?', 'Alle aktiven Sitzungen dieses Kontos werden beendet.', 'Überall abmelden',
-            () => void action.run(async () => {
-              requireAccountScope(scope);
-              await account.deleteSessions();
-              await session.logout();
-            }))} />
+            () => void action.run(() => logout(true)))} />
       </Card>
       <Card>
         <AppText variant="section">Daten</AppText>
@@ -240,3 +279,8 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  ageConfirmation: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  ageLabel: { flex: 1 },
+});
