@@ -1,10 +1,10 @@
 # iOS-Build und Release
 
-## Vorhandenes Expo-Projekt verbinden
+## Expo-Projekt und iPhone einrichten
 
 1. Auf dem Rechner mit `npx eas-cli@27.10.0 login` im Konto mit Zugriff auf das vorhandene Expo-Projekt anmelden.
-2. Projekt-ID, Kontoname und Slug aus dessen Expo-Projekteinstellungen übernehmen. Die Felder `EXPO_PUBLIC_EAS_PROJECT_ID`, `EXPO_PUBLIC_EXPO_OWNER` und `EXPO_PUBLIC_EAS_PROJECT_SLUG` aus [.env.example](../.env.example) in `.env.local` befüllen. Bei EAS dieselben Werte für das verwendete Build-Environment hinterlegen, falls sie über Umgebungsvariablen bereitgestellt werden.
-3. `npx eas-cli@27.10.0 project:info` muss das vorhandene Projekt anzeigen. Die Appwrite-Apple-Plattform verwendet `dev.buchholz.pensum`. Das Apple-Team und vorhandene Signaturdaten über EAS Credentials zuordnen. Optional trägt `EXPO_PUBLIC_APPLE_TEAM_ID` die Team-ID in Expo ein.
+2. `npx eas-cli@27.10.0 project:info` bestätigt das bereits in `app.config.ts` verknüpfte Projekt `@bookwoods-team/pensum`. Für abweichende Expo-Umgebungen bietet [.env.example](../.env.example) optionale Overrides. [Pensum im Expo-Dashboard](https://expo.dev/accounts/bookwoods-team/projects/pensum)
+3. Für den ersten internen iPhone-Build `npx eas-cli@27.10.0 device:create` ausführen, beim Apple Developer Program anmelden, das Apple-Team auswählen und den Registrierungslink in Safari auf dem iPhone öffnen. Der Preview-Build verwendet die für Appwrite registrierte Bundle-ID `dev.buchholz.pensum`. Bei Bedarf fragt EAS beim ersten Build nach der Einrichtung der Signierung. [Expo-Geräteregistrierung](https://docs.expo.dev/build/internal-distribution/)
 4. Google OAuth ist standardmäßig deaktiviert. `EXPO_PUBLIC_GOOGLE_AUTH_ENABLED=true` schaltet es für die vorgesehenen internen Tests ein.
 
 Die IDs der Projekte und der Bundle-ID dürfen in der öffentlichen App-Konfiguration stehen. Apple-Zertifikate, Appwrite- und KI-Schlüssel bleiben außerhalb dieses Checkouts. [Expo-Umgebungsvariablen](https://docs.expo.dev/eas/environment-variables/)
