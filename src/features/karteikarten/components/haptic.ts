@@ -1,20 +1,11 @@
-/* Haptisches Feedback (Web: navigator.vibrate, buzz() in karteikarten.js, Web-Commit 770dbe4). Kurze Impulse über expo-haptics;
- * Fehler (z. B. Gerät ohne Taptic Engine, Simulator) werden verschluckt. */
-import * as Haptics from "expo-haptics";
+/* Karteikarten – Haptik der Lernrunde (Web: buzz() in karteikarten.js). Leitet auf die gemeinsame Haptik der App weiter
+ * (src/ui/haptics.ts): Umdrehen ist ein Auswahl-Tick, „nicht gewusst“ eine Warnung, die fertige Runde eine Erfolgsmeldung. */
+import { haptic as feedback } from "../../../ui/haptics";
 
 export type HapticKind = "start" | "flip" | "right" | "wrong" | "done";
 
+const KIND = { start: "tap", flip: "select", right: "tap", wrong: "warn", done: "success" } as const;
+
 export function haptic(kind: HapticKind): void {
-  try {
-    const run = (p: Promise<void>) => { p.catch(() => undefined); };
-    switch (kind) {
-      case "start": run(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)); break;
-      case "flip": run(Haptics.selectionAsync()); break;
-      case "right": run(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)); break;
-      case "wrong": run(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)); break;
-      case "done": run(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)); break;
-    }
-  } catch {
-    // egal
-  }
+  feedback(KIND[kind]);
 }

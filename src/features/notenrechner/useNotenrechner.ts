@@ -278,7 +278,7 @@ export function useNotenrechner() {
     update(() => ({ subjects: plan.subjects, grades: plan.grades }));
     setErrors((e) => { const { [id]: _gone, ...rest } = e; return rest; });
     store.removeSubject(id, plan.savedGradeIds).catch(noop);
-    haptic("medium");
+    haptic("warning");
   }, [update]);
 
   const seedDefaults = useCallback(() => {

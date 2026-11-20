@@ -29,7 +29,7 @@ export function VideosScreen() {
     <Screen title="Erklärvideos" description="Finde ein Video von Lehrer Schmidt zu deinem Thema.">
       <Card>
         <Field label="Thema" value={topic} onChangeText={setTopic} editable={!action.busy} maxLength={120} />
-        <Button title="Video finden" onPress={search} disabled={topic.trim().length < 2} loading={action.busy} />
+        <Button title="Video finden" haptic="send" onPress={search} disabled={topic.trim().length < 2} loading={action.busy} />
       </Card>
       {action.error !== '' && <ErrorState message={action.error} />}
       {videos?.length === 0 && <EmptyState title="Keine passenden Videos" message="Versuch einen anderen Suchbegriff." />}

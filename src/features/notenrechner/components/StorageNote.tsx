@@ -1,16 +1,17 @@
 /* Notenrechner – Speicherhinweis (Web: .storage-note.on-tint mit Punkt, Text, Text-Link und Speicherstatus). */
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import type { SaveStatus } from "../../shared/ports";
 import { AppText, Card } from "../../../ui";
+import { PressableScale } from "../../../ui/motion";
 import { radius, spacing, usePensumTheme } from "../../../theme";
 
 const STATUS_TEXT: Record<SaveStatus, string> = { saving: "Speichert …", saved: "Gespeichert", error: "Nicht gespeichert" };
 
 function TextLink({ title, onPress }: { title: string; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="link" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [styles.link, { opacity: pressed ? 0.6 : 1 }]}>
+    <PressableScale scaleTo={1} haptic="tap" accessibilityRole="link" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => [styles.link, { opacity: pressed ? 0.6 : 1 }]}>
       <AppText variant="bodySm" tone="muted" accessible={false} style={styles.underline}>{title}</AppText>
-    </Pressable>
+    </PressableScale>
   );
 }
 

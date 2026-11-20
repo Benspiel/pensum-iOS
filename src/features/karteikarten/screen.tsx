@@ -3,7 +3,7 @@
  * Web-Quelle: tools/karteikarten/karteikarten.js (Web-Commit 770dbe4). Zustand: hooks.ts, Logik: session-model.ts. Ohne KI-Block (Folgepaket). */
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import type { Deck, StudyType } from "./core";
 import type { DeckTab } from "./session-model";
 import { useKarteikarten } from "./hooks";
@@ -15,6 +15,7 @@ import { EmptyCard, LoadingPanel } from "./components/common";
 import { detailPlaceholder, kkLayout, selectedDeckId } from "./layout";
 import { radius, spacing, usePensumTheme } from "../../theme";
 import { AppText, ErrorState, LoadingState, Panel, Screen } from "../../ui";
+import { PressableScale } from "../../ui/motion";
 import { TwoColumn, useWideLayout } from "../../ui/TwoColumn";
 import { useSession } from "../../account/session";
 
@@ -132,7 +133,9 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
   return (
     <Screen navigationTitle="Karteikarten" wide={split}>
       {k.notice ? (
-        <Pressable
+        <PressableScale
+          scaleTo={0.99}
+          haptic="tap"
           onPress={k.dismissNotice}
           accessibilityRole="alert"
           accessibilityLabel={k.notice.text}
@@ -140,7 +143,7 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
           style={[styles.notice, { backgroundColor: colors.ink }]}
         >
           <AppText variant="bodySm" style={{ color: colors.onPrimary, fontWeight: k.notice.error ? "600" : "400" }}>{k.notice.text}</AppText>
-        </Pressable>
+        </PressableScale>
       ) : null}
       <View style={styles.body}>{body}</View>
 

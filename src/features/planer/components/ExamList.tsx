@@ -40,8 +40,8 @@ function ExamCard({ exam, today, decks, onOpenDeck, onEdit, onDelete }: {
           <View style={styles.actions}>
             {deck ? <Button title="Karteikarten lernen" size="sm" accessibilityHint={`Öffnet den Stapel ${deck.name}`} onPress={() => onOpenDeck(deck.id)} /> : null}
             <View style={styles.icons}>
-              <IconButton symbol="pencil" fallback="✎" label={`Bearbeiten: ${exam.title}`} onPress={onEdit} />
-              <IconButton symbol="trash" fallback="✕" label={`Löschen: ${exam.title}`} hint="Destruktive Aktion" onPress={onDelete} />
+              <IconButton symbol="pencil" fallback="✎" label={`Bearbeiten: ${exam.title}`} haptic="open" onPress={onEdit} />
+              <IconButton symbol="trash" fallback="✕" label={`Löschen: ${exam.title}`} hint="Destruktive Aktion" haptic={false} onPress={onDelete} />
             </View>
           </View>
         </View>

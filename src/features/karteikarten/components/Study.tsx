@@ -3,7 +3,7 @@
  * Karte dreht sich beim Umdrehen (rotateY, Rückseite = Ink-Fläche) und fliegt nach dem Bewerten weg (richtig nach rechts, falsch nach links),
  * wie .is-flipped und .out-ok/.out-bad im Web; bei „reduzierte Bewegung“ entfallen die Effekte und der Ladeschritt ist kürzer (hooks.ts). */
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Animated, Easing, StyleSheet, View, useWindowDimensions } from "react-native";
 import { isLevelMode } from "../core";
 import type { Deck } from "../core";
 import { STUDY_MAX_WIDTH, studyCardMinHeight, studyFaceFontSize } from "../layout";
@@ -11,6 +11,7 @@ import { currentCard, loadingSubtitle, loadingTitle, progressPercent, resultText
 import type { Round } from "../session-model";
 import { radius, spacing, usePensumTheme } from "../../../theme";
 import { AppText, Badge, Button, Field, Panel } from "../../../ui";
+import { PressableScale } from "../../../ui/motion";
 import { IconButton, LevelBoxes, LoadingPanel, SYMBOLS, TitleBar } from "./common";
 
 export function LoadingRound({ deck, round, count }: { deck: Deck | undefined; round: Round; count: number }) {
@@ -138,7 +139,7 @@ export function StudyView({ deck, round, onQuit, onFlip, onCheck, onOverride, on
   return (
     <View style={[styles.page, styles.centered]}>
       <View style={styles.bar}>
-        <IconButton symbol={SYMBOLS.close} label="Lernrunde beenden" onPress={onQuit} />
+        <IconButton symbol={SYMBOLS.close} label="Lernrunde beenden" haptic="close" onPress={onQuit} />
         <View
           style={[styles.track, { backgroundColor: colors.border }]}
           accessibilityRole="progressbar"
@@ -151,14 +152,16 @@ export function StudyView({ deck, round, onQuit, onFlip, onCheck, onOverride, on
       </View>
 
       <FlyAway key={`${card.id}-${answered}`} leaving={leaving} reduceMotion={reduceMotion} onGone={onGone}>
-        <Pressable
+        {/* Die Rückmeldung beim Umdrehen kommt aus hooks.ts (`haptic("flip")`), hier nur das weiche Drücken. */}
+        <PressableScale
+          scaleTo={0.99}
           disabled={test || round.flipped || busy}
           onPress={onFlip}
           accessibilityRole={test ? undefined : "button"}
           accessibilityLabel={test ? `Vorderseite: ${card.front}` : showBack ? `Rückseite: ${card.back}` : `Vorderseite: ${card.front}. Karte umdrehen`}
         >
           <FlipCard front={card.front} back={test ? null : card.back} flipped={showBack} reduceMotion={reduceMotion} minHeight={minHeight} hint={!test} />
-        </Pressable>
+        </PressableScale>
       </FlyAway>
 
       {test ? (
@@ -176,8 +179,8 @@ export function StudyView({ deck, round, onQuit, onFlip, onCheck, onOverride, on
         ) : <AnswerForm key={card.id + round.queue.length} onCheck={onCheck} />
       ) : round.flipped ? (
         <View style={styles.actions}>
-          <Button title="Nicht gewusst" variant="secondary" disabled={busy} onPress={() => leave(false)} style={styles.half} />
-          <Button title="Gewusst" disabled={busy} onPress={() => leave(true)} style={styles.half} />
+          <Button title="Nicht gewusst" variant="secondary" haptic={false} disabled={busy} onPress={() => leave(false)} style={styles.half} />
+          <Button title="Gewusst" haptic={false} disabled={busy} onPress={() => leave(true)} style={styles.half} />
         </View>
       ) : <Button title="Umdrehen" onPress={onFlip} />}
     </View>

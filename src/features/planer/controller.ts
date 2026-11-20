@@ -178,7 +178,7 @@ export function usePlanerController(toast: ShowToast) {
     if (!ready()) return false;
     const r = validateQuick(title, itemsRef.current.length);
     if (!r.ok) {
-      if (r.reason === "full") toastRef.current(r.message, { error: true });
+      if (r.reason === "full") { haptic("warning"); toastRef.current(r.message, { error: true }); }
       return false;
     }
     commit([...itemsRef.current, newItem((storeRef.current as Store).newId(), "task", { title: r.title })]);
@@ -188,8 +188,9 @@ export function usePlanerController(toast: ShowToast) {
 
   const saveItem = useCallback((kind: ItemKind, id: string | null, fields: FormFields) => {
     if (!ready()) return;
-    if (id) { commit(updateItem(itemsRef.current, id, fields)); return; }
+    if (id) { commit(updateItem(itemsRef.current, id, fields)); haptic("success"); return; }
     commit([...itemsRef.current, newItem((storeRef.current as Store).newId(), kind, fields)]);
+    haptic("success");
     toastRef.current(kind === "exam" ? TEXT.examCreated : TEXT.taskCreated);
   }, [commit]);
 
@@ -203,10 +204,11 @@ export function usePlanerController(toast: ShowToast) {
   const remove = useCallback((id: string) => {
     if (!ready()) return;
     commit(removeItem(itemsRef.current, id));
+    haptic("warning");
     toastRef.current(TEXT.deleted);
   }, [commit]);
 
-  const clearDoneTasks = useCallback(() => { if (ready()) commit(clearDone(itemsRef.current)); }, [commit]);
+  const clearDoneTasks = useCallback(() => { if (!ready()) return; commit(clearDone(itemsRef.current)); haptic("success"); }, [commit]);
   const reload = useCallback(() => setReloadTick((t) => t + 1), []);
 
   return {

@@ -2,12 +2,13 @@
  * Bedienung und Texte sind nativ. Vorlage Web: tools/goodnotes/index.html (Handschrift-Dialog) + goodnotes.js (Web-Commit 770dbe4). */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SymbolView } from "expo-symbols";
-import { Modal, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Modal, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent } from "./engine-view";
 
 import { radius, spacing, usePensumTheme } from "../../theme";
 import { AppText, Button } from "../../ui";
+import { PressableScale } from "../../ui/motion";
 import { HAND_PAD_MAX_WIDTH, handPadHeight, isTabletWindow } from "./layout";
 import { FormMessage } from "./parts";
 import { GOODNOTES_PAD_HTML } from "./host-html.generated";
@@ -75,9 +76,9 @@ export function HandPad({ visible, packed, ink, cloud, onSave, onDelete, onClose
       <View style={styles.head}>
         <AppText variant="h3" accessibilityRole="header" style={styles.title}>Deine Handschrift.</AppText>
         <View style={styles.close}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Schließen" onPress={onClose} style={({ pressed }) => [styles.closeButton, { backgroundColor: pressed ? colors.surface : "transparent" }]}>
+          <PressableScale scaleTo={0.92} haptic="close" accessibilityRole="button" accessibilityLabel="Schließen" onPress={onClose} style={({ pressed }) => [styles.closeButton, { backgroundColor: pressed ? colors.surface : "transparent" }]}>
             <SymbolView name={{ ios: "xmark", android: "close", web: "close" }} tintColor={colors.muted} size={20} />
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
       <AppText variant="bodySm" tone="muted">
@@ -110,19 +111,19 @@ export function HandPad({ visible, packed, ink, cloud, onSave, onDelete, onClose
           {state.done.map((done, i) => {
             const current = i === state.idx;
             return (
-              <Pressable key={i} onPress={() => send({ type: "goto", idx: i })} accessibilityRole="button"
+              <PressableScale key={i} scaleTo={0.92} haptic="select" onPress={() => send({ type: "goto", idx: i })} accessibilityRole="button"
                 accessibilityLabel={`Zeichen ${i + 1}${done ? ", gezeichnet" : ""}${current ? ", aktuell" : ""}`}
                 style={[styles.dot, { borderColor: current ? colors.ink : done ? colors.surface : colors.border, backgroundColor: current ? colors.ink : done ? colors.surface : colors.canvas }]}>
                 <AppText variant="body" style={[styles.dotText, { color: current ? colors.onPrimary : done ? colors.ink : colors.muted }]}>{i + 1}</AppText>
-              </Pressable>
+              </PressableScale>
             );
           })}
         </ScrollView>
       ) : null}
 
       <View style={styles.actions}>
-        <Button title="Speichern" onPress={save} loading={busy} disabled={!ready || !state || state.doneCount === 0} />
-        {onDelete ? <Button title="Handschrift löschen" variant="plain" accessibilityHint="Destruktive Aktion" onPress={onDelete} disabled={busy || !packed} /> : null}
+        <Button title="Speichern" haptic="send" onPress={save} loading={busy} disabled={!ready || !state || state.doneCount === 0} />
+        {onDelete ? <Button title="Handschrift löschen" variant="plain" haptic="warn" accessibilityHint="Destruktive Aktion" onPress={onDelete} disabled={busy || !packed} /> : null}
       </View>
     </>
   );

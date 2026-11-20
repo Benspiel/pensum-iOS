@@ -3,6 +3,7 @@ import { useState } from "react";
 import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { AppText, Button, Chip, Field, Panel } from "../../../ui";
 import { spacing, usePensumTheme } from "../../../theme";
+import { haptic } from "../haptics";
 
 export function AddSubject({ onAdd }: { onAdd: (name: string) => string | null }) {
   const { width } = useWindowDimensions();
@@ -11,7 +12,8 @@ export function AddSubject({ onAdd }: { onAdd: (name: string) => string | null }
   const [error, setError] = useState<string | undefined>();
   const submit = () => {
     const err = onAdd(name);
-    if (err) { setError(err); return; }
+    // Erfolg meldet useNotenrechner selbst; hier nur der Fehlerfall.
+    if (err) { haptic("warning"); setError(err); return; }
     setError(undefined);
     setName("");
   };
@@ -31,7 +33,7 @@ export function AddSubject({ onAdd }: { onAdd: (name: string) => string | null }
           blurOnSubmit={false}
         />
       </View>
-      <Button title="Fach hinzufügen" onPress={submit} style={wide ? styles.buttonWide : undefined} />
+      <Button title="Fach hinzufügen" haptic={false} onPress={submit} style={wide ? styles.buttonWide : undefined} />
     </Panel>
   );
 }
@@ -44,7 +46,7 @@ export function Suggestions({ names, onPick }: { names: readonly string[]; onPic
       <AppText variant="bodySm" tone="muted">Schnell hinzufügen:</AppText>
       <View style={styles.chips}>
         {names.map((n) => (
-          <Chip key={n} label={`+ ${n}`} accessibilityLabel={`${n} hinzufügen`} onPress={() => onPick(n)} style={[styles.chip, { backgroundColor: colors.canvas, borderColor: colors.border }]} />
+          <Chip key={n} label={`+ ${n}`} accessibilityLabel={`${n} hinzufügen`} haptic={false} onPress={() => onPick(n)} style={[styles.chip, { backgroundColor: colors.canvas, borderColor: colors.border }]} />
         ))}
       </View>
     </View>

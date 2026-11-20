@@ -55,7 +55,7 @@ export function ExportBar({ onPress, disabled, actions, document }: {
             ]}
           />
           {showSummary ? <AppText variant="caption" tone="muted" style={styles.summary}>{document.summary}</AppText> : null}
-          <Button title="Exportieren" onPress={onPress} disabled={disabled} style={styles.documentExport} />
+          <Button title="Exportieren" haptic="open" onPress={onPress} disabled={disabled} style={styles.documentExport} />
         </Animated.View>
       </View>
     );
@@ -75,7 +75,7 @@ export function ExportBar({ onPress, disabled, actions, document }: {
         <Animated.View style={[styles.exportAction, stacked && styles.full, animation]}>
           <Button
             title="Exportieren" symbol={{ ios: 'square.and.arrow.up', android: 'share', web: 'share' }}
-            variant="accent" onPress={onPress} disabled={disabled}
+            variant="accent" haptic="open" onPress={onPress} disabled={disabled}
           />
         </Animated.View>
       </View>

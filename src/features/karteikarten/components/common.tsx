@@ -3,7 +3,7 @@
  * Optik: Bausteine aus src/ui, Farben/Abstände aus dem Theme. Abstände Web → App: s-xs 8 = sm, s-sm 12 = md, s-md 16 = lg, s-lg 24 = xl. */
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
 import { useContext, type ReactNode } from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LEVELS, levelCounts } from "../core";
 import type { Deck } from "../core";
@@ -11,7 +11,8 @@ import { DIALOG_MAX_WIDTH, isTabletWindow } from "../layout";
 import { saveNote } from "../session-model";
 import type { SaveStatus } from "../session-model";
 import { WIDE_BREAKPOINT, radius, spacing, usePensumTheme } from "../../../theme";
-import { AppText, Button, Panel, PensumLoadingMark, TintContext } from "../../../ui";
+import { AppText, Button, Panel, PensumLoadingMark, TintContext, type HapticKind } from "../../../ui";
+import { PressableScale } from "../../../ui/motion";
 
 /** Ab ≥ 640 Breite gelten im Web die größeren Schriften und Zweispalter. */
 export function useWide() {
@@ -29,10 +30,19 @@ export const SYMBOLS = {
   close: { ios: "xmark", android: "close", web: "close" },
 } satisfies Record<string, SymbolViewProps["name"]>;
 
-export function IconButton({ symbol, label, onPress, disabled = false }: { symbol: SymbolViewProps["name"]; label: string; onPress: () => void; disabled?: boolean }) {
+/** Web `.icon-btn`: 44 pt, Pille, Muted; beim Drücken Tönung und `scale(0.92)`, dazu eine kurze Rückmeldung. */
+export function IconButton({ symbol, label, onPress, disabled = false, haptic = "tap" }: {
+  symbol: SymbolViewProps["name"];
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  haptic?: HapticKind | false;
+}) {
   const { colors } = usePensumTheme();
   return (
-    <Pressable
+    <PressableScale
+      scaleTo={0.92}
+      haptic={haptic}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
@@ -41,7 +51,7 @@ export function IconButton({ symbol, label, onPress, disabled = false }: { symbo
       style={({ pressed }) => [styles.iconButton, { backgroundColor: pressed ? colors.surface : "transparent", opacity: disabled ? 0.5 : 1 }]}
     >
       <SymbolView name={symbol} tintColor={colors.muted} size={20} />
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -54,7 +64,7 @@ export function TitleBar({ title, onBack, backLabel, onAction, actionLabel }: { 
     <View style={styles.bar}>
       {onBack ? <IconButton symbol={SYMBOLS.back} label={backLabel} onPress={onBack} /> : null}
       <AppText variant="h1" accessibilityRole="header" numberOfLines={2} style={[styles.barTitle, wide ? { fontSize: 36, lineHeight: 42 } : { fontSize: 28, lineHeight: 33 }]}>{title}</AppText>
-      {onAction && actionLabel ? <IconButton symbol={SYMBOLS.edit} label={actionLabel} onPress={onAction} /> : null}
+      {onAction && actionLabel ? <IconButton symbol={SYMBOLS.edit} label={actionLabel} haptic="open" onPress={onAction} /> : null}
     </View>
   );
 }
@@ -82,7 +92,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
   const head = (
     <View style={styles.sheetHead}>
       <AppText variant="h3" accessibilityRole="header" style={styles.flex}>{title}</AppText>
-      <View style={styles.sheetClose}><IconButton symbol={SYMBOLS.close} label="Schließen" onPress={onClose} /></View>
+      <View style={styles.sheetClose}><IconButton symbol={SYMBOLS.close} label="Schließen" haptic="close" onPress={onClose} /></View>
     </View>
   );
   // iPad: zentriertes Blatt mit begrenzter Breite über abgedunkeltem Screen
@@ -125,9 +135,10 @@ export function SaveNote({ signedIn, status, onLogin }: { signedIn: boolean; sta
       <View style={styles.flex}>
         <AppText variant="bodySm" tone="muted">{note.text}</AppText>
         {note.loginHint ? (
-          <Pressable accessibilityRole="link" accessibilityLabel="Anmelden, um sie in deinem Konto zu sichern." onPress={onLogin} style={styles.noteLink}>
+          <PressableScale scaleTo={1} haptic="tap" accessibilityRole="link" accessibilityLabel="Anmelden, um sie in deinem Konto zu sichern." onPress={onLogin}
+            style={({ pressed }) => [styles.noteLink, { opacity: pressed ? 0.6 : 1 }]}>
             <AppText variant="bodySm" tone="muted" style={styles.underline}>Anmelden, um sie in deinem Konto zu sichern.</AppText>
-          </Pressable>
+          </PressableScale>
         ) : null}
       </View>
     </View>

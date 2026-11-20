@@ -11,6 +11,7 @@ import { gutter, radius, resolveTextStyle, spacing, usePensumTheme } from "../..
 import { AppText, Badge, Button, Panel, Screen } from "../../ui";
 import { Disclosure } from "../../ui/Disclosure";
 import { PressableScale } from "../../ui/motion";
+import { haptic } from "../../ui/haptics";
 import { useWideLayout } from "../../ui/TwoColumn";
 import { takeHandoff } from "../shared/handoff";
 import { ExportBar, ExportMenu } from "./ExportMenu";
@@ -265,7 +266,7 @@ export default function GoodnotesScreen() {
         </View>
         {hand.count ? null : <AppText variant="caption" tone="muted">{handInfo(hand.count, 85, hand.cloud)}</AppText>}
         <View style={styles.wrap}>
-          <Button title={hand.count ? "Handschrift bearbeiten" : "Eigene Handschrift zeichnen"} variant="soft" size="sm" onPress={() => hand.setPadOpen(true)} disabled={!hand.loaded} />
+          <Button title={hand.count ? "Handschrift bearbeiten" : "Eigene Handschrift zeichnen"} variant="soft" size="sm" haptic="open" onPress={() => hand.setPadOpen(true)} disabled={!hand.loaded} />
         </View>
         {settings.font === HAND_FONT ? (
           <View style={styles.group}>
@@ -273,7 +274,7 @@ export default function GoodnotesScreen() {
               <AppText variant="fieldLabel" style={styles.toggleLabel}>Natürlich variieren</AppText>
               <Switch
                 value={settings.handVary > 0}
-                onValueChange={(on) => patch({ handVary: on ? HAND_VARY.default : 0 })}
+                onValueChange={(on) => { haptic("select"); patch({ handVary: on ? HAND_VARY.default : 0 }); }}
                 accessibilityLabel="Natürlich variieren"
                 trackColor={{ false: colors.border, true: colors.ink }}
                 thumbColor={colors.canvas}
@@ -315,6 +316,7 @@ export default function GoodnotesScreen() {
       <AppText variant="fieldLabel">Eigene Vorlage</AppText>
       <PressableScale
         scaleTo={0.99}
+        haptic="tap"
         accessibilityRole="button"
         accessibilityLabel={template ? "Andere Vorlage wählen" : "Vorlage wählen"}
         accessibilityState={{ disabled: !ready }}
@@ -326,7 +328,7 @@ export default function GoodnotesScreen() {
         <AppText variant="fieldLabel" accessible={false}>{template ? "Andere Vorlage wählen" : "Vorlage wählen"}</AppText>
         <AppText variant="bodySm" tone="muted" accessible={false}>{template ? `Geladen: ${template}` : "Nur nötig, wenn du ein anderes Format brauchst. Wähle eine einseitige .goodnotes-Datei."}</AppText>
       </PressableScale>
-      {template ? <Button title="Entfernen" accessibilityLabel="Eigene Vorlage entfernen" variant="plain" size="sm" onPress={dropTemplate} style={styles.removeTemplate} /> : null}
+      {template ? <Button title="Entfernen" accessibilityLabel="Eigene Vorlage entfernen" variant="plain" size="sm" haptic="warn" onPress={dropTemplate} style={styles.removeTemplate} /> : null}
     </View>
   );
   const engine = (
@@ -430,7 +432,8 @@ const styles = StyleSheet.create({
   stageScroll: { borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden" },
   settingsScroll: { flex: 1, minWidth: 0 },
   settings: { gap: spacing.lg, paddingBottom: spacing.md },
-  page: { width: "100%", aspectRatio: A4_ASPECT, borderRadius: spacing.sm, borderCurve: "continuous", backgroundColor: "#fff" },
+  /** Web `.gn-stage canvas`: Radius 16 wie eine Fläche, nicht 8 */
+  page: { width: "100%", aspectRatio: A4_ASPECT, borderRadius: radius.field, borderCurve: "continuous", backgroundColor: "#fff" },
   styleOptions: { gap: spacing.xl },
   fontSample: { fontSize: 24, lineHeight: 29, fontWeight: "400" },
   section: { gap: spacing.lg },

@@ -33,7 +33,7 @@ export function DeckList({ data, signedIn, saveStatus, onLogin, onNewDeck, onOpe
       <Panel style={styles.hero}>
         <View style={styles.top}>
           <AppText variant="h1" accessibilityRole="header" style={[styles.heroTitle, wide ? { fontSize: 40, lineHeight: 46 } : { fontSize: 32, lineHeight: 37 }]}>Karteikarten.</AppText>
-          <Button title="+ Neuer Stapel" onPress={onNewDeck} disabled={stats.full} />
+          <Button title="+ Neuer Stapel" haptic="open" onPress={onNewDeck} disabled={stats.full} />
         </View>
         <View style={styles.stats}>
           <StatTile value={stats.decks} label="Stapel" />
@@ -72,7 +72,7 @@ function DeckRow({ deck, onOpen, onQuickStart, compact, selected }: { deck: Deck
   const empty = !deck.cards.length;
   return (
     <Card style={[styles.deck, selected && { backgroundColor: colors.surface, borderColor: colors.ink }]}>
-      <PressableScale scaleTo={0.99} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${deck.name}, ${deckMeta(deck)}`} onPress={() => onOpen(deck.id)} style={styles.deckOpen}>
+      <PressableScale scaleTo={0.99} haptic="tap" accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${deck.name}, ${deckMeta(deck)}`} onPress={() => onOpen(deck.id)} style={styles.deckOpen}>
         <View style={[styles.squircle, compact && styles.squircleCompact, { backgroundColor: colors.ink }]}>
           <AppText variant="h3" style={[styles.initial, { color: colors.onPrimary }]}>{(deck.name[0] ?? "?").toUpperCase()}</AppText>
         </View>
@@ -83,6 +83,7 @@ function DeckRow({ deck, onOpen, onQuickStart, compact, selected }: { deck: Deck
         </View>
       </PressableScale>
       <PressableScale scaleTo={0.99}
+        haptic="tap"
         accessibilityRole="button"
         accessibilityLabel={`${deck.name} lernen, ${dueCount(deck)} Karten`}
         disabled={empty}

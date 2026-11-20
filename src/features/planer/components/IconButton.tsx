@@ -1,21 +1,24 @@
 /* Planer – runder Symbol-Knopf, 44 pt (Web: .icon-btn mit Stift / Papierkorb / Schließen-Kreuz). */
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
 import { StyleSheet } from "react-native";
-import { AppText } from "../../../ui";
+import { AppText, type HapticKind } from "../../../ui";
 import { usePensumTheme } from "../../../theme";
 import { PressableScale } from "../../../ui/motion";
 
-export function IconButton({ symbol, fallback, label, hint, onPress }: {
+export function IconButton({ symbol, fallback, label, hint, onPress, haptic = "tap" }: {
   symbol: SymbolViewProps["name"];
   /** Zeichen, wo es keine SF Symbols gibt (Web-Vorschau, Android) */
   fallback: string;
   label: string;
   hint?: string;
   onPress: () => void;
+  /** Standard `tap`; Löschen gibt `warn` mit. */
+  haptic?: HapticKind | false;
 }) {
   const { colors } = usePensumTheme();
   return (
     <PressableScale scaleTo={0.9}
+      haptic={haptic}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={hint}

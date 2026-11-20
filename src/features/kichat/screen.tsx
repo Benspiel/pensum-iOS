@@ -10,7 +10,9 @@ import type { Models } from 'react-native-appwrite';
 import { executeFunction, functionIds, listAllRows, Query, tableIds } from '../../backend';
 import { useAccountGuard } from '../appwrite-tools/account-scope';
 import { radius, resolveTextStyle, spacing, usePensumTheme } from '../../theme';
-import { AppText, Button, ErrorState, Field, LoadingState, PensumLoadingMark, Screen, Segmented } from '../../ui';
+import { AppText, Button, ErrorState, Field, LoadingState, PensumLoadingMark, Screen, Segmented, type HapticKind } from '../../ui';
+import { PressableScale } from '../../ui/motion';
+import { haptic } from '../../ui/haptics';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { confirmAction, consentToGemini, errorText, useToolAction } from '../appwrite-tools/actions';
 import { pickPhoto, prepareImage, removeTemporaryFile, type ImageSource } from '../appwrite-tools/images';
@@ -33,22 +35,24 @@ function byUpdated(a: Chat, b: Chat) {
   return b.updatedAt.localeCompare(a.updatedAt);
 }
 
-function IconButton({ icon, label, onPress, disabled, filled }: {
+function IconButton({ icon, label, onPress, disabled, filled, haptic = 'tap' }: {
   icon: SymbolViewProps['name'];
   label: string;
   onPress: () => void;
   disabled?: boolean;
   filled?: boolean;
+  /** Standard `tap`; Senden gibt `send` mit, Öffnen und Schließen `open` / `close`. */
+  haptic?: HapticKind | false;
 }) {
   const { colors } = usePensumTheme();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled }} onPress={onPress}
+    <PressableScale scaleTo={0.92} haptic={haptic} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled }} onPress={onPress}
       style={({ pressed }) => [styles.iconButton, {
         backgroundColor: filled ? colors.ink : pressed ? colors.border : colors.surface,
         opacity: disabled ? 0.45 : pressed && filled ? 0.75 : 1,
       }]}>
       <SymbolView name={icon} size={19} tintColor={filled ? colors.onPrimary : colors.ink} />
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -220,19 +224,19 @@ export function KiChatScreen({ userId }: { userId: string }) {
     <View style={styles.history}>
       <View style={styles.historyHeader}>
         <AppText variant="section" accessibilityRole="header">Deine Chats</AppText>
-        {!wide ? <IconButton icon="xmark" label="Chatliste schließen" onPress={() => setMenu(false)} /> : null}
+        {!wide ? <IconButton icon="xmark" label="Chatliste schließen" haptic="close" onPress={() => setMenu(false)} /> : null}
       </View>
       <ScrollView contentContainerStyle={styles.historyList} keyboardShouldPersistTaps="handled">
         {listLoading ? <LoadingState title="Chats werden geladen" /> : null}
         {listError ? <ErrorState message={listError} onRetry={() => setListAttempt((value) => value + 1)} /> : null}
         {!listLoading && !listError && !chats.length ? <AppText tone="muted" variant="bodySm">Noch keine Chats</AppText> : null}
         {chats.map((chat) => (
-          <Pressable key={chat.id} accessibilityRole="button" accessibilityState={{ selected: active?.id === chat.id, disabled: action.busy }}
+          <PressableScale key={chat.id} scaleTo={0.99} haptic="tap" accessibilityRole="button" accessibilityState={{ selected: active?.id === chat.id, disabled: action.busy }}
             disabled={action.busy} onPress={() => open(chat)} style={({ pressed }) => [
               styles.historyItem, { backgroundColor: active?.id === chat.id ? colors.accentSurface : pressed ? colors.border : 'transparent' },
             ]}>
             <AppText variant="bodySm" numberOfLines={2}>{chat.title || 'Chat'}</AppText>
-          </Pressable>
+          </PressableScale>
         ))}
       </ScrollView>
     </View>
@@ -245,12 +249,12 @@ export function KiChatScreen({ userId }: { userId: string }) {
         {wide ? <View style={[styles.sidebar, { backgroundColor: colors.surface, borderRightColor: colors.border }]}>{chatList}</View> : null}
         <View style={styles.conversation}>
           <View style={[styles.chatHeader, conversationInset, { borderBottomColor: colors.hairlineSoft }]}>
-            {!wide ? <IconButton icon="line.3.horizontal" label="Chatliste öffnen" disabled={action.busy} onPress={() => {
+            {!wide ? <IconButton icon="line.3.horizontal" label="Chatliste öffnen" haptic="open" disabled={action.busy} onPress={() => {
               Keyboard.dismiss();
               setMenu(true);
             }} /> : null}
             <AppText variant="fieldLabel" accessibilityRole="header" numberOfLines={1} style={styles.chatTitle}>{active?.title || 'Neuer Chat'}</AppText>
-            {active ? <IconButton icon="ellipsis" label="Chat verwalten" disabled={action.busy} onPress={() => {
+            {active ? <IconButton icon="ellipsis" label="Chat verwalten" haptic="open" disabled={action.busy} onPress={() => {
               Keyboard.dismiss();
               action.setError('');
               setChatTitle(active.title);
@@ -309,12 +313,12 @@ export function KiChatScreen({ userId }: { userId: string }) {
             {attachment ? (
               <View style={[styles.attachment, { backgroundColor: colors.surface }]}>
                 <AppText variant="bodySm" numberOfLines={1} style={styles.attachmentName}>{attachment.kind === 'pdf' ? attachment.name : 'Foto ausgewählt'}</AppText>
-                <IconButton icon="xmark" label="Anhang entfernen" disabled={action.busy} onPress={() => setAttachment(undefined)} />
+                <IconButton icon="xmark" label="Anhang entfernen" haptic="warn" disabled={action.busy} onPress={() => setAttachment(undefined)} />
               </View>
             ) : null}
             <View style={styles.composerRow}>
               <View style={[styles.inputGroup, { backgroundColor: colors.field, borderColor: colors.border }]}>
-                <IconButton icon="plus" label="Anhänge und Klassenstufe" disabled={action.busy} onPress={() => {
+                <IconButton icon="plus" label="Anhänge und Klassenstufe" haptic="open" disabled={action.busy} onPress={() => {
                   Keyboard.dismiss();
                   action.setError('');
                   setSheet('compose');
@@ -322,7 +326,7 @@ export function KiChatScreen({ userId }: { userId: string }) {
                 <TextInput accessibilityLabel="Nachricht" placeholder="Nachricht" placeholderTextColor={colors.muted} selectionColor={colors.accent}
                   keyboardAppearance={scheme} value={text} onChangeText={setText} maxLength={4000} multiline editable={!action.busy}
                   style={[styles.input, { color: colors.ink, fontSize: body.fontSize, fontFamily: body.fontFamily }]} />
-                <IconButton icon="arrow.up" label="Nachricht senden" filled disabled={action.busy || (!text.trim() && !attachment)} onPress={send} />
+                <IconButton icon="arrow.up" label="Nachricht senden" filled haptic="send" disabled={action.busy || (!text.trim() && !attachment)} onPress={send} />
               </View>
               <IconButton icon="square.and.pencil" label="Neuen Chat erstellen" disabled={action.busy} onPress={newChat} />
             </View>
@@ -333,7 +337,7 @@ export function KiChatScreen({ userId }: { userId: string }) {
       <Modal visible={menu && !wide} transparent animationType="fade" onRequestClose={() => setMenu(false)}
         supportedOrientations={['portrait', 'portrait-upside-down', 'landscape']}>
         <View style={styles.drawerFrame}>
-          <Pressable accessible={false} style={styles.drawerBackdrop} onPress={() => setMenu(false)} />
+          <Pressable accessible={false} style={styles.drawerBackdrop} onPress={() => { haptic('close'); setMenu(false); }} />
           <SafeAreaView edges={['top', 'bottom', 'left']} style={[styles.drawer, { backgroundColor: colors.canvas }]} accessibilityViewIsModal>
             {chatList}
           </SafeAreaView>
@@ -343,8 +347,8 @@ export function KiChatScreen({ userId }: { userId: string }) {
       <BottomSheet visible={sheet === 'chat'} title="Chat verwalten" busy={action.busy} onClose={() => setSheet(undefined)}>
         {action.error ? <ErrorState message={action.error} /> : null}
         <Field label="Chatname" value={chatTitle} onChangeText={setChatTitle} maxLength={60} editable={!action.busy} />
-        <Button title="Umbenennen" disabled={action.busy || !chatTitle.trim() || chatTitle.trim() === active?.title} onPress={rename} />
-        <Button title="Chat löschen" variant="plain" disabled={action.busy} onPress={remove} />
+        <Button title="Umbenennen" haptic="send" disabled={action.busy || !chatTitle.trim() || chatTitle.trim() === active?.title} onPress={rename} />
+        <Button title="Chat löschen" variant="plain" haptic="warn" disabled={action.busy} onPress={remove} />
       </BottomSheet>
 
       <BottomSheet visible={sheet === 'compose'} title="Nachricht vorbereiten" busy={action.busy} onClose={() => setSheet(undefined)}>

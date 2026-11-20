@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { radius, spacing, usePensumTheme } from '../theme';
 import { AppText, Button } from './index';
+import { haptic } from './haptics';
 import { DURATION, EASE, NATIVE_DRIVER, useReduceMotion } from './motion';
 
 export function BottomSheet({ visible, title, children, onClose, busy = false }: {
@@ -17,11 +18,17 @@ export function BottomSheet({ visible, title, children, onClose, busy = false }:
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const reduce = useReduceMotion();
-  const requestClose = () => { if (!busy) onClose(); };
+  const requestClose = () => {
+    if (busy) return;
+    haptic('close');
+    onClose();
+  };
 
   // Eigene Bewegung statt „slide“ des Modals: der Hintergrund blendet ein, das Blatt gleitet von unten hoch (und beim Schließen zurück).
   const [mounted, setMounted] = useState(visible);
   const progress = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  // Beim Öffnen meldet sich der Knopf, der das Blatt aufruft (`haptic="open"`), damit die Rückmeldung
+  // im Moment der Berührung kommt und nicht doppelt. Hier nur das Schließen (Knopf, Fläche daneben, Zurück-Geste).
   useEffect(() => {
     if (visible) {
       setMounted(true);
@@ -52,7 +59,8 @@ export function BottomSheet({ visible, title, children, onClose, busy = false }:
           <View style={[styles.grabber, { backgroundColor: colors.border }]} accessible={false} />
           <View style={styles.header}>
             <AppText variant="section" accessibilityRole="header" style={styles.title}>{title}</AppText>
-            <Button title="Schließen" variant="plain" size="sm" disabled={busy} onPress={requestClose} />
+            {/* Die Rückmeldung kommt aus `requestClose` („close“), der Knopf selbst gibt keine zweite. */}
+            <Button title="Schließen" variant="plain" size="sm" haptic={false} disabled={busy} onPress={requestClose} />
           </View>
           <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
             {children}

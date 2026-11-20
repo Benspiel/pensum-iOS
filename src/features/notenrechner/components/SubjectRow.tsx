@@ -76,7 +76,9 @@ export function SubjectRow({ subject, initialValue, unit, error, divider, onRena
           />
           {gradeFocus || error ? <View pointerEvents="none" style={[styles.ring, styles.gradeRing, ring, { borderStyle: error ? "dashed" : "solid" }]} /> : null}
         </View>
+        {/* Die Warnung kommt aus useNotenrechner (`removeSubject`), erst nach der Rückfrage. */}
         <PressableScale scaleTo={0.9}
+          haptic={false}
           accessibilityRole="button"
           accessibilityLabel={`Fach ${subject.name} löschen`}
           accessibilityHint="Destruktive Aktion"

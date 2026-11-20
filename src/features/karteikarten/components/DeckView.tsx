@@ -90,8 +90,8 @@ function CardRow({ card, level, onEdit, onDelete }: { card: Card; level: boolean
         </View>
       </View>
       <View style={styles.rowActions}>
-        <IconButton symbol={SYMBOLS.edit} label="Karte bearbeiten" onPress={() => onEdit(card)} />
-        <IconButton symbol={SYMBOLS.trash} label="Karte löschen" onPress={() => onDelete(card)} />
+        <IconButton symbol={SYMBOLS.edit} label="Karte bearbeiten" haptic="open" onPress={() => onEdit(card)} />
+        <IconButton symbol={SYMBOLS.trash} label="Karte löschen" haptic="warn" onPress={() => onDelete(card)} />
       </View>
     </View>
   );
@@ -110,6 +110,7 @@ function AddForm({ onAdd }: { onAdd: (front: string, back: string) => ActionResu
       {error ? <FormMessage text={error} /> : null}
       <Button
         title="Karte hinzufügen"
+        haptic="send"
         onPress={() => {
           const r = onAdd(front, back);
           if (!r.ok) { setError(r.error); return; }

@@ -31,6 +31,7 @@ function TaskRow({ task, today, done, reduceMotion, onToggle, onEdit, onDelete }
   return (
     <TintContext.Provider value={false}>
       <Animated.View style={[styles.row, { borderColor: colors.hairlineSoft, backgroundColor: colors.canvas, opacity: leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateX: leave.interpolate({ inputRange: [0, 1], outputRange: [0, 24] }) }] }]}>
+        {/* Die Rückmeldung kommt aus controller.ts (`toggle`): erledigt = Erfolg, wieder offen = kurzer Impuls. */}
         <PressableScale scaleTo={0.9}
           accessibilityRole="checkbox"
           accessibilityLabel={`${done ? "Wieder öffnen" : "Als erledigt markieren"}: ${task.title}`}
@@ -53,8 +54,8 @@ function TaskRow({ task, today, done, reduceMotion, onToggle, onEdit, onDelete }
           {task.note ? <AppText variant="caption" style={[styles.small, styles.note, { color: colors.mutedOnCanvas }]}>{task.note}</AppText> : null}
         </View>
         <View style={styles.actions}>
-          <IconButton symbol="pencil" fallback="✎" label={`Bearbeiten: ${task.title}`} onPress={onEdit} />
-          <IconButton symbol="trash" fallback="✕" label={`Löschen: ${task.title}`} hint="Destruktive Aktion" onPress={onDelete} />
+          <IconButton symbol="pencil" fallback="✎" label={`Bearbeiten: ${task.title}`} haptic="open" onPress={onEdit} />
+          <IconButton symbol="trash" fallback="✕" label={`Löschen: ${task.title}`} hint="Destruktive Aktion" haptic={false} onPress={onDelete} />
         </View>
       </Animated.View>
     </TintContext.Provider>
@@ -89,7 +90,8 @@ export function QuickAdd({ onAdd }: { onAdd: (title: string) => boolean }) {
         />
         {focused ? <View pointerEvents="none" style={[styles.ring, { borderColor: colors.ink }]} /> : null}
       </View>
-      <Button title="Hinzufügen" onPress={submit} />
+      {/* Die Rückmeldung kommt aus controller.ts (`addQuick`): hinzugefügt = kurzer Impuls, Liste voll = Warnung. */}
+      <Button title="Hinzufügen" haptic={false} onPress={submit} />
     </View>
   );
 }

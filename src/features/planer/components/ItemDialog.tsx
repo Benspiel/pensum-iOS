@@ -49,7 +49,7 @@ export function ItemDialog({ kind, item, items, decks, today, onClose, onSubmit 
           <View style={styles.head}>
             <AppText variant="h3" accessibilityRole="header" style={styles.headTitle}>{dialogTitle(kind, creating)}</AppText>
             <View style={styles.close}>
-              <IconButton symbol="xmark" fallback="✕" label="Schließen" onPress={onClose} />
+              <IconButton symbol="xmark" fallback="✕" label="Schließen" haptic="close" onPress={onClose} />
             </View>
           </View>
 
@@ -104,7 +104,7 @@ export function ItemDialog({ kind, item, items, decks, today, onClose, onSubmit 
           ) : null}
 
           {errors.form ? <FormMessage boxed text={errors.form} /> : null}
-          <Button title={labels.submit(creating)} onPress={submit} />
+          <Button title={labels.submit(creating)} haptic={false} onPress={submit} />
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>

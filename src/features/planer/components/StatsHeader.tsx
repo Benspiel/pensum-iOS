@@ -16,7 +16,7 @@ function Stat({ value, label, alert, roomy }: { value: string; label: string; al
       style={[styles.stat, { backgroundColor: alert ? colors.ink : colors.canvas }]}
     >
       <AppText variant="h4" style={[styles.value, { color: fg, fontSize: size, lineHeight: Math.round(size * 1.1) }]} numberOfLines={1} adjustsFontSizeToFit>{value}</AppText>
-      <AppText variant="bodySm" style={[styles.label, { color: alert ? colors.onPrimary : colors.muted, opacity: alert ? 0.8 : 1 }]} numberOfLines={1}>{label}</AppText>
+      <AppText variant="bodySm" style={[styles.label, { color: alert ? colors.onPrimary : colors.muted, opacity: alert ? 0.8 : 1 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</AppText>
     </View>
   );
 }
@@ -36,7 +36,7 @@ export function StatsHeader({ stats, account, status, newLabel, onNew, roomy }: 
     <Panel style={styles.box}>
       <View style={styles.top}>
         <AppText variant="h1" accessibilityRole="header" style={{ fontSize: width >= WIDE_BREAKPOINT ? 40 : 32 }}>Planer.</AppText>
-        <Button title={newLabel} onPress={onNew} />
+        <Button title={newLabel} haptic="open" onPress={onNew} />
       </View>
       <View style={styles.stats}>
         <Stat value={String(stats.open)} label="offen" roomy={roomy} />

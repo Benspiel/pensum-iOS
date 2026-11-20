@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { executeFunction, functionIds } from '../../backend';
 import { useAccountGuard } from '../appwrite-tools/account-scope';
+import { radius } from '../../theme';
 import { AppText, Button, Card, ErrorState, Field, Screen } from '../../ui';
 import { consentToGemini, errorText, useToolAction } from '../appwrite-tools/actions';
 import { pickPhoto, prepareImage, type ImageSource } from '../appwrite-tools/images';
@@ -81,9 +82,9 @@ export function AbschreibenScreen() {
         <View style={styles.actions}>
           <Button title="Foto aufnehmen" variant="secondary" disabled={action.busy} onPress={() => choosePhoto('camera')} />
           <Button title="Foto wählen" variant="secondary" disabled={action.busy} onPress={() => choosePhoto('library')} />
-          {photo && <Button title="Entfernen" variant="plain" disabled={action.busy} onPress={() => { setPhoto(null); setText(''); setCopied(false); }} />}
+          {photo && <Button title="Entfernen" variant="plain" haptic="warn" disabled={action.busy} onPress={() => { setPhoto(null); setText(''); setCopied(false); }} />}
         </View>
-        <Button title="Text erkennen" onPress={scan} loading={action.busy} disabled={!photo || Boolean(usage && usage.scans >= usage.maxScans)} />
+        <Button title="Text erkennen" haptic="send" onPress={scan} loading={action.busy} disabled={!photo || Boolean(usage && usage.scans >= usage.maxScans)} />
       </Card>
       {action.error !== '' && <ErrorState message={action.error} />}
       {text !== '' && (
@@ -98,6 +99,6 @@ export function AbschreibenScreen() {
 }
 
 const styles = StyleSheet.create({
-  preview: { width: '100%', maxHeight: 320, borderRadius: 16, resizeMode: 'contain' },
+  preview: { width: '100%', maxHeight: 320, borderRadius: radius.field, borderCurve: 'continuous', resizeMode: 'contain' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

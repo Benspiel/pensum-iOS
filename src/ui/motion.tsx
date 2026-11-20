@@ -4,6 +4,7 @@
  *   EASE / DURATION   Web `--ease` (cubic-bezier 0.2 0.7 0.2 1) und die Zeiten der Website (Press 120 ms, Wechsel 150–220 ms, Einblenden 450 ms)
  *   useReduceMotion   „Bewegung reduzieren“ des Systems; alle Bausteine hier springen dann ohne Animation
  *   PressableScale    Pressable mit weichem Skalieren beim Drücken (Web `.btn:active` 0.97, `.gn-option:active` 0.98)
+ *                     und optionaler Haptik: `haptic="tap" | "select" | …` (siehe ui/haptics.ts) löst beim Auslösen aus
  *   Reveal            Einblenden mit leichtem Aufsteigen (Web `rise`), optional gestaffelt über `delay`
  *   useToggleValue    0/1-Wert, der bei Wechsel weich überblendet (Auswahlring, Pfeil, Markierung)
  */
@@ -18,6 +19,8 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+
+import { haptic, type HapticKind } from './haptics';
 
 export const NATIVE_DRIVER = Platform.OS !== 'web';
 export const EASE = Easing.bezier(0.2, 0.7, 0.2, 1);
@@ -73,16 +76,21 @@ export function usePressScale(to: number) {
   };
 }
 
-/** Drop-in für `Pressable` (auch die Funktionsform von `style`). Skaliert beim Drücken weich und kehrt beim Loslassen zurück. */
-export function PressableScale({ style, scaleTo = 0.97, onPressIn, onPressOut, ...props }: Omit<PressableProps, 'style'> & {
+/**
+ * Drop-in für `Pressable` (auch die Funktionsform von `style`). Skaliert beim Drücken weich und kehrt beim Loslassen zurück.
+ * `haptic` gibt beim Auslösen eine kurze Rückmeldung (vor dem eigenen `onPress`, damit sie sofort kommt); `false` schaltet sie ab.
+ */
+export function PressableScale({ style, scaleTo = 0.97, haptic: kind = false, onPress, onPressIn, onPressOut, ...props }: Omit<PressableProps, 'style'> & {
   style?: PressStyle;
   scaleTo?: number;
+  haptic?: HapticKind | false;
 }) {
   const press = usePressScale(scaleTo);
   const [pressed, setPressed] = useState(false);
   return (
     <AnimatedPressable
       {...props}
+      onPress={(event) => { if (kind) haptic(kind); onPress?.(event); }}
       onPressIn={(event) => { setPressed(true); press.pressIn(); onPressIn?.(event); }}
       onPressOut={(event) => { setPressed(false); press.pressOut(); onPressOut?.(event); }}
       style={[typeof style === 'function' ? style({ pressed }) : style, press.style]}

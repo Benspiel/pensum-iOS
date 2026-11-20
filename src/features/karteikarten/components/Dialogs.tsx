@@ -2,7 +2,7 @@
  * Web-Quelle: karteikarten.js deckDialog, cardDialog, startDialog (Web-Commit 770dbe4). Texte wörtlich.
  * Optik: karteikarten.css (.kk-ai, .kk-start, .kk-danger) und pensum.css (.modal, .field, .select, .check). */
 import { useRef, useState } from "react";
-import { Pressable, StyleSheet, Switch, View, useWindowDimensions } from "react-native";
+import { StyleSheet, Switch, View, useWindowDimensions } from "react-native";
 import { MODES } from "../core";
 import type { Card, Deck, DeckMode, StudyType } from "../core";
 import { confirmAsync } from "../hooks";
@@ -15,6 +15,8 @@ import type { KiFile, KiFileSource } from "../ki/files";
 import { plural } from "../session-model";
 import { radius, spacing, usePensumTheme } from "../../../theme";
 import { AppText, Badge, Button, Chip, Field, Panel, Segmented } from "../../../ui";
+import { PressableScale } from "../../../ui/motion";
+import { haptic } from "../../../ui/haptics";
 import { FormMessage, Sheet } from "./common";
 
 const MODE_IDS = Object.keys(MODES) as DeckMode[];
@@ -103,7 +105,7 @@ export function DeckDialog({ deck, kiTester = false, onSubmit, onKi, onDelete, o
             <AppText variant="bodySm" style={styles.switchLabel}>Mit KI erstellen</AppText>
             <Switch
               value={useAi}
-              onValueChange={setUseAi}
+              onValueChange={(on) => { haptic("select"); setUseAi(on); }}
               accessibilityLabel="Mit KI erstellen"
               trackColor={{ false: colors.border, true: colors.ink }}
               thumbColor={colors.canvas}
@@ -151,11 +153,11 @@ export function DeckDialog({ deck, kiTester = false, onSubmit, onKi, onDelete, o
         </Panel>
       ) : null}
       {error ? <FormMessage text={error} /> : null}
-      <Button title={creating ? "Stapel erstellen" : "Speichern"} onPress={() => void submit()} />
+      <Button title={creating ? "Stapel erstellen" : "Speichern"} haptic="send" onPress={() => void submit()} />
       {!creating ? (
         <View style={[styles.danger, { borderTopColor: colors.hairlineSoft }]}>
           <AppText variant="fieldLabel">Stapel löschen</AppText>
-          <Button title="Stapel löschen" variant="secondary" accessibilityHint="Destruktive Aktion" onPress={() => void remove()} />
+          <Button title="Stapel löschen" variant="secondary" haptic="warn" accessibilityHint="Destruktive Aktion" onPress={() => void remove()} />
           <AppText variant="caption" tone="muted">Löscht den Stapel samt aller Karten. Das lässt sich nicht rückgängig machen.</AppText>
         </View>
       ) : null}
@@ -180,7 +182,7 @@ export function CardDialog({ card, onSubmit, onClose }: {
       <Field label="Vorderseite" value={front} onChangeText={setFront} maxLength={1000} multiline style={styles.textarea} />
       <Field label="Rückseite" value={back} onChangeText={setBack} maxLength={1000} multiline style={styles.textarea} />
       {error ? <FormMessage text={error} /> : null}
-      <Button title="Speichern" onPress={submit} />
+      <Button title="Speichern" haptic="send" onPress={submit} />
     </Sheet>
   );
 }
@@ -212,7 +214,9 @@ function StartButton({ title, sub, primary = false, large, columns, disabled, on
   const { colors } = usePensumTheme();
   const foreground = primary ? colors.onPrimary : colors.ink;
   return (
-    <Pressable
+    <PressableScale
+      scaleTo={0.98}
+      haptic="tap"
       accessibilityRole="button"
       accessibilityLabel={title}
       accessibilityHint={sub}
@@ -232,7 +236,7 @@ function StartButton({ title, sub, primary = false, large, columns, disabled, on
     >
       <AppText variant="link" accessible={false} style={[styles.startTitle, { color: foreground }, large && { fontSize: 28, lineHeight: 34 }]}>{title}</AppText>
       <AppText variant="caption" accessible={false} style={[styles.startSub, { color: foreground }, large && { fontSize: 15, lineHeight: 20 }]}>{sub}</AppText>
-    </Pressable>
+    </PressableScale>
   );
 }
 

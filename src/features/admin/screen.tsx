@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { executeFunction, functionIds } from '../../backend';
 import { getTool, tools } from '../../navigation/tools';
 import { useAccountGuard } from '../appwrite-tools/account-scope';
+import { radius, spacing, usePensumTheme } from '../../theme';
 import { AppText, Button, Card, EmptyState, ErrorState, Field, LoadingState, Screen } from '../../ui';
 import { errorText, useToolAction } from '../appwrite-tools/actions';
 
@@ -25,6 +26,19 @@ const labels: Record<string, string> = {
   decks: 'Stapel', cards: 'Karten', mindmaps: 'Mindmaps', chats: 'Chats', messages: 'Nachrichten', planner: 'Planereinträge', grades: 'Noten',
 };
 const displayCount = (value: Count | undefined) => value == null ? 'Keine Daten' : value.toLocaleString('de-DE');
+
+/** Eine Person der Nutzungsübersicht als eigene getönte Fläche mit Radius 16 (Web `.plain-list-item`). */
+function PersonRow({ person }: { person: Person }) {
+  const { colors } = usePensumTheme();
+  return (
+    <View style={[styles.person, { backgroundColor: colors.surface }]}>
+      <AppText variant="label">{person.name || person.email}</AppText>
+      {!!person.name && <AppText variant="bodySm" tone="muted">{person.email}</AppText>}
+      <AppText variant="bodySm" tone="muted">{displayCount(person.total)} Aufrufe{person.lastDay ? ` · zuletzt ${person.lastDay}` : ''}</AppText>
+      <AppText variant="bodySm">{Object.entries(person.tools).map(([id, count]) => `${getTool(id)?.title ?? id} ${count}`).join(' · ')}</AppText>
+    </View>
+  );
+}
 
 function Stat({ title, value }: { title: string; value: Count | undefined }) {
   return (
@@ -96,7 +110,7 @@ export function AdminScreen() {
       )}
       <Card>
         <AppText variant="section">Wer nutzt was</AppText>
-        <Button title="Nutzungsübersicht laden" variant="secondary" loading={action.busy} onPress={() => void action.run(async () => {
+        <Button title="Nutzungsübersicht laden" variant="secondary" haptic="send" loading={action.busy} onPress={() => void action.run(async () => {
           requireAccount();
           const value = await executeFunction<{ people: People }>(functionIds.adminStats, { action: 'people' });
           setPeople(value.people);
@@ -107,14 +121,7 @@ export function AdminScreen() {
             <AppText tone="muted">Letzte {people.days} Tage{people.truncated ? ' · Serverlimit erreicht' : ''}</AppText>
             <Field label="Nach Name, E-Mail oder Werkzeug filtern" value={filter} onChangeText={setFilter} autoCapitalize="none" />
             {!filteredPeople?.length && <EmptyState title="Keine passenden Einträge" />}
-            {filteredPeople?.map((person) => (
-              <View key={person.id} style={styles.person}>
-                <AppText variant="label">{person.name || person.email}</AppText>
-                {!!person.name && <AppText tone="muted">{person.email}</AppText>}
-                <AppText tone="muted">{displayCount(person.total)} Aufrufe{person.lastDay ? ` · zuletzt ${person.lastDay}` : ''}</AppText>
-                <AppText>{Object.entries(person.tools).map(([id, count]) => `${getTool(id)?.title ?? id} ${count}`).join(' · ')}</AppText>
-              </View>
-            ))}
+            {filteredPeople?.map((person) => <PersonRow key={person.id} person={person} />)}
           </>
         )}
       </Card>
@@ -123,7 +130,10 @@ export function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
+  row: { flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' },
   label: { flexShrink: 1 },
-  person: { gap: 6, paddingVertical: 10 },
+  person: {
+    gap: 2, paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
+    borderRadius: radius.field, borderCurve: 'continuous',
+  },
 });

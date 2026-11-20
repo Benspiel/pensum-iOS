@@ -1,10 +1,11 @@
 import * as Clipboard from 'expo-clipboard';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { radius, spacing, usePensumTheme } from '../../theme';
 import { AppText } from '../../ui';
+import { PressableScale } from '../../ui/motion';
 
 
 /* Lösungsfenster (Web `.kc-solution`): Die KI legt die fertige Lösung in einen ```lösung-Block.
@@ -20,15 +21,18 @@ function ActionButton({ icon, label, onPress, disabled, primary }: {
   const { colors } = usePensumTheme();
   const foreground = primary ? colors.onPrimary : colors.ink;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
+    // Sichtbar 36 hoch wie im Web (`.kc-solution-btn`), antippbar aber die vollen 44 pt (hitSlop).
+    <PressableScale scaleTo={0.96} haptic="tap" hitSlop={{ top: 4, bottom: 4 }}
+      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
       style={({ pressed }) => [styles.action, {
         backgroundColor: primary ? colors.ink : colors.canvas,
         borderColor: primary ? colors.ink : colors.border,
         opacity: disabled ? 0.45 : pressed ? 0.75 : 1,
       }]}>
       <SymbolView name={icon} size={15} tintColor={foreground} />
-      <AppText variant="bodySm" style={{ color: foreground }}>{label}</AppText>
-    </Pressable>
+      {/* Ohne numberOfLines: bei großer Schrift bricht „In Goodnotes einfügen“ um, statt abgeschnitten zu werden. */}
+      <AppText variant="bodySm" style={[styles.actionLabel, { color: foreground }]}>{label}</AppText>
+    </PressableScale>
   );
 }
 
@@ -78,8 +82,9 @@ const styles = StyleSheet.create({
   title: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   action: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 36, paddingHorizontal: spacing.md,
-    borderWidth: 1, borderRadius: radius.pill,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 36, maxWidth: '100%', paddingHorizontal: spacing.md,
+    borderWidth: 1, borderRadius: radius.pill, borderCurve: 'continuous',
   },
+  actionLabel: { flexShrink: 1 },
   body: { padding: spacing.md },
 });

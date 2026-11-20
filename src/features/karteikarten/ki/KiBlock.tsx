@@ -1,9 +1,10 @@
 /* Karteikarten mit KI – Block über den Tabs des Stapels (Web: kiBlock in karteikarten.js, Web-Commit 770dbe4):
  * Laden, Fehler, Vorschlagsliste mit Häkchen, „<n> Karten hinzufügen“ und „Verwerfen“.
  * Optik: .kk-add/.kk-ki (getönte Fläche), .kk-row (Haarlinie, Radius 16), Häkchenfeld in Ink. */
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { radius, spacing, usePensumTheme } from "../../../theme";
 import { AppText, Button, Panel, PensumLoadingMark } from "../../../ui";
+import { PressableScale } from "../../../ui/motion";
 import { FormMessage } from "../components/common";
 import { addButtonLabel, chosenCount } from "./cards";
 import type { KiState } from "./cards";
@@ -41,8 +42,10 @@ export function KiBlock({ state, onToggle, onAdd, onDiscard }: Props) {
       <AppText variant="bodyLg" accessibilityRole="header">{`Vorschlag der KI (${n} ${n === 1 ? "Karte" : "Karten"})`}</AppText>
       <View style={styles.list} accessibilityLabel="Vorschlag der KI">
         {state.suggestions.map((s, i) => (
-          <Pressable
+          <PressableScale
             key={`${i}-${s.front}`}
+            scaleTo={0.99}
+            haptic="select"
             accessibilityRole="checkbox"
             accessibilityState={{ checked: s.on }}
             accessibilityLabel={`${s.front}, ${s.back}`}
@@ -58,11 +61,11 @@ export function KiBlock({ state, onToggle, onAdd, onDiscard }: Props) {
               <AppText variant="label" tone="muted" style={[styles.caps, styles.back]}>Rückseite</AppText>
               <AppText>{s.back}</AppText>
             </View>
-          </Pressable>
+          </PressableScale>
         ))}
       </View>
       <Button title={addButtonLabel(chosen)} onPress={onAdd} disabled={!chosen} />
-      <Button title="Verwerfen" variant="secondary" onPress={onDiscard} />
+      <Button title="Verwerfen" variant="secondary" haptic="warn" onPress={onDiscard} />
     </View>
   );
 }
@@ -74,7 +77,7 @@ const styles = StyleSheet.create({
   busyText: { flex: 1 },
   list: { gap: spacing.sm },
   row: { flexDirection: "row", gap: spacing.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderWidth: 1, borderRadius: radius.field, borderCurve: "continuous", minHeight: 56 },
-  check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, alignItems: "center", justifyContent: "center", marginTop: 2 },
+  check: { width: 24, height: 24, borderRadius: 8, borderCurve: "continuous", borderWidth: 2, alignItems: "center", justifyContent: "center", marginTop: 2 },
   texts: { flex: 1, gap: 2 },
   caps: { fontSize: 11, lineHeight: 15, letterSpacing: 0.44, textTransform: "uppercase" },
   back: { marginTop: spacing.xs },

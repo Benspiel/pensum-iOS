@@ -4,10 +4,11 @@
  */
 import { SymbolView } from 'expo-symbols';
 import { Children, Fragment, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { radius, spacing, usePensumTheme } from '../theme';
 import { AppText, Badge, Panel } from '../ui';
+import { PressableScale } from '../ui/motion';
 
 export function initials(name: string, email: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -52,6 +53,11 @@ export function SettingsPanel({ title, children }: { title: string; children: Re
   );
 }
 
+/**
+ * Gruppe gestapelter Zeilen wie im Web (`css/pensum.css` `.group`): getönte Fläche mit Radius 24 und 8 Innenabstand,
+ * darin jede Zeile als eigene weiße Fläche mit Radius 16. Dadurch ist jede Zeile für sich abgerundet und als
+ * eigener Knopf erkennbar – ohne Trennlinien.
+ */
 export function SettingsSection({ title, children }: { title: string; children: ReactNode }) {
   const { colors } = usePensumTheme();
   const rows = Children.toArray(children);
@@ -59,12 +65,7 @@ export function SettingsSection({ title, children }: { title: string; children: 
     <View style={styles.section}>
       <AppText variant="bodyLg" tone="muted" accessibilityRole="header" style={styles.sectionTitle}>{title}</AppText>
       <View style={[styles.group, { backgroundColor: colors.surface }]}>
-        {rows.map((row, index) => (
-          <Fragment key={index}>
-            {index > 0 ? <View accessible={false} style={[styles.divider, { backgroundColor: colors.border }]} /> : null}
-            {row}
-          </Fragment>
-        ))}
+        {rows.map((row, index) => <Fragment key={index}>{row}</Fragment>)}
       </View>
     </View>
   );
@@ -79,24 +80,30 @@ export function SettingsRow({ label, value, danger = false, disabled = false, on
 }) {
   const { colors } = usePensumTheme();
   return (
-    <Pressable
+    <PressableScale
+      scaleTo={0.99}
+      haptic="tap"
       accessibilityRole="button"
       accessibilityLabel={value ? `${label}, ${value}` : label}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.border : 'transparent', opacity: disabled ? 0.5 : 1 }]}
+      style={({ pressed }) => [
+        styles.row,
+        { backgroundColor: pressed ? colors.border : colors.canvas, opacity: disabled ? 0.5 : 1 },
+      ]}
     >
-      <AppText variant="bodyLg" numberOfLines={1} accessible={false}
+      {/* Die Beschriftung darf umbrechen: „Gespeichert in deinem Konto“ wurde einzeilig abgeschnitten. */}
+      <AppText variant="bodyLg" numberOfLines={2} accessible={false}
         style={[styles.rowLabel, { fontWeight: '500' }, danger && { color: colors.danger }]}>
         {label}
       </AppText>
       {value ? (
         <AppText variant="bodyLg" tone="muted" numberOfLines={1} accessible={false} style={styles.rowValue}>{value}</AppText>
-      ) : <View style={styles.rowValue} />}
+      ) : null}
       <SymbolView accessible={false} size={14} weight="semibold" tintColor={colors.muted}
         name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} />
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -117,9 +124,15 @@ const styles = StyleSheet.create({
   panelTitle: { textAlign: 'center' },
   section: { gap: spacing.sm },
   sectionTitle: { paddingHorizontal: spacing.sm },
-  group: { borderRadius: radius.card, borderCurve: 'continuous', overflow: 'hidden' },
-  divider: { height: 1 },
-  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
-  rowLabel: { flex: 1 },
-  rowValue: { flex: 1 },
+  /** Web `.group`: getönte Fläche, Innenabstand und Abstand zwischen den Zeilen je 8 */
+  group: { borderRadius: radius.card, borderCurve: 'continuous', padding: spacing.sm, gap: spacing.sm },
+  /** Web `.group-row summary`: mindestens 64 hoch, Radius 16, Innenabstand 12 / 16 */
+  row: {
+    minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+    borderRadius: radius.field, borderCurve: 'continuous',
+  },
+  /** Die Beschriftung bekommt den größeren Anteil, der Wert steht rechts und kürzt sich selbst (Web `.group-row-value`). */
+  rowLabel: { flexGrow: 1, flexShrink: 1, flexBasis: '50%' },
+  rowValue: { flexShrink: 1, textAlign: 'right' },
 });

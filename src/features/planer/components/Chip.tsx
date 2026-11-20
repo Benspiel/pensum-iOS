@@ -17,6 +17,7 @@ export function Chip({ title, onPress, selected, accessibilityLabel, radio }: {
   if (!radio) return <SharedChip label={title} selected={selected} onPress={onPress} accessibilityLabel={accessibilityLabel} />;
   return (
     <PressableScale scaleTo={0.96}
+      haptic="select"
       accessibilityRole="radio"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ selected: !!selected, checked: !!selected }}

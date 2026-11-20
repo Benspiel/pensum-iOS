@@ -2,6 +2,10 @@
  * Gemeinsame UI-Bausteine im Stil der Pensum-Website (css/pensum.css). Alles hier liest Farben aus
  * `usePensumTheme()`; keine Schatten, Hierarchie über Tönung und Haarlinien.
  *
+ * Haptik: Button, Chip und Segmented geben von sich aus eine kurze Rückmeldung (`ui/haptics.ts`, Begriffe wie
+ * `js/haptics.js` der Website). Über `haptic="send" | "warn" | …` lässt sie sich je Knopf ändern, mit `haptic={false}`
+ * abschalten. Eigene Pressables nehmen sie über `PressableScale` aus `ui/motion` mit.
+ *
  * Bestehende Exporte (kompatibel, Props unverändert; neue Props sind optional):
  *   AppText      variant: display | h1 | h2 | h3 | h4 | bodyLg | body | bodySm | link | label | fieldLabel | caption
  *                         | title (≙ h2, bisherige Seitenüberschrift) | section (20/600, ≙ Web `.title`)
@@ -66,10 +70,12 @@ import {
   type ThemeChoice,
 } from '../theme';
 import { PensumLoadingMark } from './PensumLoadingMark';
+import { haptic, type HapticKind } from './haptics';
 import { DURATION, EASE, PressableScale, Reveal, useReduceMotion } from './motion';
 import { contentMaxWidth } from './wide';
 
 export { PensumLoadingMark } from './PensumLoadingMark';
+export { haptic, type HapticKind } from './haptics';
 
 /* ---------- Text ---------- */
 
@@ -162,12 +168,15 @@ type ActionProps = Omit<PressableProps, 'children' | 'style'> & {
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** Haptik beim Auslösen. Standard: `tap`, bei `danger` eine Warnung. `false` schaltet sie ab, `"send"` für Abschicken/Exportieren. */
+  haptic?: HapticKind | false;
 };
 
 const buttonHeight = { sm: 44, md: 48, lg: 56 } as const;
 
 export function Button({
-  title, variant = 'primary', symbol, size = 'md', loading = false, disabled = false, style, accessibilityState, ...props
+  title, variant = 'primary', symbol, size = 'md', loading = false, disabled = false, style, accessibilityState,
+  haptic: kind, ...props
 }: ActionProps) {
   const { colors } = usePensumTheme();
   const onTint = useContext(TintContext);
@@ -183,6 +192,7 @@ export function Button({
   return (
     <PressableScale
       scaleTo={variant === 'plain' ? 1 : 0.97}
+      haptic={kind ?? (variant === 'danger' ? 'warn' : 'tap')}
       accessibilityRole="button"
       accessibilityLabel={title}
       accessibilityHint={variant === 'danger' ? 'Destruktive Aktion' : undefined}
@@ -321,13 +331,15 @@ export function Badge({ label, variant = 'soft', style, ...props }: ViewProps & 
   );
 }
 
-export function Chip({ label, selected = false, onPress, disabled = false, accessibilityLabel, style }: {
+export function Chip({ label, selected = false, onPress, disabled = false, accessibilityLabel, style, haptic: kind = 'select' }: {
   label: string;
   selected?: boolean;
   onPress?: () => void;
   disabled?: boolean;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
+  /** Standard `select`; `false`, wenn die Rückmeldung schon aus der ausgelösten Aktion kommt. */
+  haptic?: HapticKind | false;
 }) {
   const { colors } = usePensumTheme();
   const onTint = useContext(TintContext);
@@ -341,6 +353,7 @@ export function Chip({ label, selected = false, onPress, disabled = false, acces
   return (
     <PressableScale
       scaleTo={0.96}
+      haptic={kind}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ selected, disabled }}
@@ -432,6 +445,8 @@ export function Segmented<T extends string>({ options, value, onChange, label, r
             accessibilityLabel={option.accessibilityLabel ?? option.label}
             accessibilityState={role === 'tablist' ? { selected: active, disabled: option.disabled } : { checked: active, disabled: option.disabled }}
             disabled={option.disabled}
+            // Nur beim echten Wechsel eine Rückmeldung: ein Tipp auf die schon gewählte Option ändert nichts.
+            haptic={active ? false : 'select'}
             onPress={() => onChange(option.id)}
             style={[
               styles.segment,
@@ -439,7 +454,14 @@ export function Segmented<T extends string>({ options, value, onChange, label, r
               { opacity: option.disabled ? 0.5 : 1 },
             ]}
           >
-            <AppText variant="bodySm" numberOfLines={1} style={{ fontWeight: '600', color: active ? colors.ink : colors.muted }}>
+            {/* Die Beschriftung bleibt einzeilig, wird aber kleiner statt abgeschnitten (der Nutzer muss sie ganz lesen können). */}
+            <AppText
+              variant="bodySm"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              style={{ fontWeight: '600', color: active ? colors.ink : colors.muted }}
+            >
               {option.label}
             </AppText>
           </PressableScale>

@@ -1,8 +1,9 @@
 /* Notenrechner – kurze Hinweise (Web: .toast, invers in Ink, ohne Schatten; Fehler nur fett). Es gibt kein gemeinsames Toast-System, daher hier eine kleine eigene Zeile. */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Pressable, StyleSheet, View } from "react-native";
+import { AccessibilityInfo, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppText } from "../../../ui";
+import { PressableScale } from "../../../ui/motion";
 import { radius, spacing, usePensumTheme } from "../../../theme";
 
 export interface ToastMessage { id: number; text: string; error: boolean }
@@ -33,7 +34,9 @@ export function Toast({ toast, onDismiss }: { toast: ToastMessage | null; onDism
   if (!toast) return null;
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { bottom: spacing.xl + insets.bottom }]}>
-      <Pressable
+      <PressableScale
+        scaleTo={0.99}
+        haptic="tap"
         accessibilityRole="alert"
         accessibilityLabel={toast.text}
         accessibilityHint="Zum Schließen tippen"
@@ -46,7 +49,7 @@ export function Toast({ toast, onDismiss }: { toast: ToastMessage | null; onDism
           </View>
         ) : null}
         <AppText variant="bodySm" style={[{ color: colors.onPrimary }, toast.error && styles.bold, styles.text]}>{toast.text}</AppText>
-      </Pressable>
+      </PressableScale>
     </View>
   );
 }

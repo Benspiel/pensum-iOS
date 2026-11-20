@@ -16,6 +16,7 @@ export function YearPicker({ value, options, onChange }: { value: string; option
   return (
     <>
       <PressableScale scaleTo={0.99}
+        haptic="open"
         accessibilityRole="button"
         accessibilityLabel={`Schuljahr ${value}`}
         accessibilityHint="Öffnet die Auswahl des Schuljahrs"
@@ -39,6 +40,7 @@ export function YearPicker({ value, options, onChange }: { value: string; option
               return (
                 <PressableScale scaleTo={0.99}
                   key={y}
+                  haptic="select"
                   accessibilityRole="radio"
                   accessibilityLabel={`Schuljahr ${y}`}
                   accessibilityState={{ checked: active }}

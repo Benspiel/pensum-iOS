@@ -27,7 +27,7 @@ export function FormMessage({ text, onDismiss }: { text: string; onDismiss?: () 
   if (onDismiss) {
     return (
       <Reveal distance={8} duration={DURATION.change + 60}>
-        <PressableScale scaleTo={0.99} accessibilityRole="alert" accessibilityLabel={text} accessibilityHint="Zum Schließen tippen" onPress={onDismiss} style={style}>{body}</PressableScale>
+        <PressableScale scaleTo={0.99} haptic="tap" accessibilityRole="alert" accessibilityLabel={text} accessibilityHint="Zum Schließen tippen" onPress={onDismiss} style={style}>{body}</PressableScale>
       </Reveal>
     );
   }
@@ -77,6 +77,7 @@ export function OptionTile({ title, hint, selected, onPress, center = false, lab
   return (
     <PressableScale
       scaleTo={0.98}
+      haptic="select"
       accessibilityRole="radio"
       accessibilityLabel={label ?? title}
       accessibilityState={{ selected, checked: selected }}
@@ -114,7 +115,7 @@ export function InkDot({ color, label, selected, onPress }: { color: string; lab
   const { colors } = usePensumTheme();
   const ring = useToggleValue(selected, DURATION.change);
   return (
-    <PressableScale scaleTo={0.9} accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{ selected, checked: selected }} onPress={onPress} style={styles.ink}>
+    <PressableScale scaleTo={0.9} haptic="select" accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{ selected, checked: selected }} onPress={onPress} style={styles.ink}>
       <View style={[styles.inkDot, { backgroundColor: color }]} />
       <Animated.View
         pointerEvents="none"
@@ -135,8 +136,8 @@ export function StepperRow({ label, valueLabel, onStep }: { label: string; value
           <AppText variant="caption" tone="muted" accessible={false}>{`  ${valueLabel}`}</AppText>
         </AppText>
       </View>
-      <Button title="−" variant="secondary" size="sm" accessibilityLabel={`${label} verringern`} accessibilityValue={{ text: valueLabel }} onPress={() => onStep(-1)} style={styles.stepButton} />
-      <Button title="+" variant="secondary" size="sm" accessibilityLabel={`${label} erhöhen`} accessibilityValue={{ text: valueLabel }} onPress={() => onStep(1)} style={styles.stepButton} />
+      <Button title="−" variant="secondary" size="sm" haptic="select" accessibilityLabel={`${label} verringern`} accessibilityValue={{ text: valueLabel }} onPress={() => onStep(-1)} style={styles.stepButton} />
+      <Button title="+" variant="secondary" size="sm" haptic="select" accessibilityLabel={`${label} erhöhen`} accessibilityValue={{ text: valueLabel }} onPress={() => onStep(1)} style={styles.stepButton} />
     </View>
   );
 }
@@ -162,6 +163,7 @@ export function ExportList({ rows }: { rows: ExportRow[] }) {
         <PressableScale
           key={row.id}
           scaleTo={0.985}
+          haptic="send"
           accessibilityRole="button"
           accessibilityLabel={row.accessibilityLabel}
           accessibilityHint={row.hint}

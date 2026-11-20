@@ -369,9 +369,9 @@ export function MindmapScreen({ userId }: { userId: string }) {
           <View style={styles.toolbar}>
             <AppText variant="h4" numberOfLines={2} accessibilityRole="header" style={styles.mapTitle}>{root?.text || current.topic}</AppText>
             <View style={styles.actions}>
-              <Button title="Meine Mindmaps" variant="soft" size="sm" disabled={busy} onPress={() => setSheet('library')} />
-              {canCreate ? <Button title="Mindmap erstellen" size="sm" disabled={busy} onPress={() => setSheet('create')} /> : null}
-              {today ? <Button title="Mit KI ändern" size="sm" disabled={busy || !canRefine} onPress={() => setSheet('refine')} /> : null}
+              <Button title="Meine Mindmaps" variant="soft" size="sm" haptic="open" disabled={busy} onPress={() => setSheet('library')} />
+              {canCreate ? <Button title="Mindmap erstellen" size="sm" haptic="open" disabled={busy} onPress={() => setSheet('create')} /> : null}
+              {today ? <Button title="Mit KI ändern" size="sm" haptic="open" disabled={busy || !canRefine} onPress={() => setSheet('refine')} /> : null}
             </View>
             {today && !canRefine ? <AppText variant="caption" tone="muted">KI-Änderungen für heute aufgebraucht</AppText> : null}
           </View>
@@ -382,10 +382,10 @@ export function MindmapScreen({ userId }: { userId: string }) {
           {loading || (!status && !statusError) ? <LoadingState title="Mindmaps werden geladen" /> : (
             <>
               <AppText variant="h2" accessibilityRole="header">Deine Mindmaps</AppText>
-              {canCreate ? <Button title="Mindmap erstellen" disabled={busy} onPress={() => setSheet('create')} /> : (
+              {canCreate ? <Button title="Mindmap erstellen" haptic="open" disabled={busy} onPress={() => setSheet('create')} /> : (
                 status ? <AppText tone="muted">Du kannst morgen wieder eine neue Mindmap erstellen.</AppText> : null
               )}
-              {list.length ? <Button title="Meine Mindmaps öffnen" variant="secondary" disabled={busy} onPress={() => setSheet('library')} /> : null}
+              {list.length ? <Button title="Meine Mindmaps öffnen" variant="secondary" haptic="open" disabled={busy} onPress={() => setSheet('library')} /> : null}
             </>
           )}
         </View>
@@ -395,7 +395,7 @@ export function MindmapScreen({ userId }: { userId: string }) {
         <Field label="Thema" value={topic} onChangeText={(value) => { setTopic(value); setCreateError(''); }} maxLength={120} editable={!busy} placeholder="z. B. Photosynthese" />
         <Field label="Hinweise (optional)" value={notes} onChangeText={setNotes} maxLength={500} multiline editable={!busy} placeholder="z. B. für eine Klausur in Klasse 9" />
         {createError ? <FormMessage text={createError} /> : null}
-        <Button title={busy ? 'KI arbeitet …' : 'Mindmap erstellen'} loading={busy} disabled={!canCreate} onPress={create} />
+        <Button title={busy ? 'KI arbeitet …' : 'Mindmap erstellen'} haptic="send" loading={busy} disabled={!canCreate} onPress={create} />
       </BottomSheet>
 
       <BottomSheet visible={sheet === 'refine'} title="Mit KI ändern" busy={busy} onClose={closeSheet}>
@@ -403,7 +403,7 @@ export function MindmapScreen({ userId }: { userId: string }) {
         <Field label="Was soll sich ändern?" value={instruction} onChangeText={(value) => { setInstruction(value); setAiError(''); }}
           maxLength={500} multiline editable={!busy && canRefine} placeholder="z. B. Erkläre die Lichtreaktion ausführlicher" />
         {aiError ? <FormMessage text={aiError} /> : null}
-        <Button title={busy ? 'KI arbeitet …' : 'Änderung anwenden'} loading={busy} disabled={!canRefine} onPress={refine} />
+        <Button title={busy ? 'KI arbeitet …' : 'Änderung anwenden'} haptic="send" loading={busy} disabled={!canRefine} onPress={refine} />
       </BottomSheet>
 
       <BottomSheet visible={sheet === 'library'} title="Meine Mindmaps" busy={busy} onClose={closeSheet}>
@@ -415,7 +415,7 @@ export function MindmapScreen({ userId }: { userId: string }) {
               else switchMap(entry);
             }} />
         ))}
-        {current && !today && status ? <Button title="Diese Mindmap löschen" variant="plain" disabled={busy} onPress={removeMap} /> : null}
+        {current && !today && status ? <Button title="Diese Mindmap löschen" variant="plain" haptic="warn" disabled={busy} onPress={removeMap} /> : null}
       </BottomSheet>
 
       <BottomSheet visible={sheet === 'appearance'} title="Darstellung" onClose={closeSheet}>

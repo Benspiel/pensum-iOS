@@ -9,7 +9,7 @@ import {
   clearAccountContents, getAccountDevices, requireAccountScope, shareAccountExport,
 } from '../../src/account/management';
 import { type AccountScope, type EmailCode, useSession } from '../../src/account/session';
-import { AppText, Button, Card, ErrorState, Field, LoadingState, Screen, Segmented, ThemeSelector, type SegmentedOption } from '../../src/ui';
+import { AppText, Button, Card, ErrorState, Field, LoadingState, Screen, Segmented, ThemeSelector, haptic, type SegmentedOption } from '../../src/ui';
 import { BottomSheet } from '../../src/ui/BottomSheet';
 import { ProfileCard, SettingsPanel, SettingsRow, SettingsSection } from '../../src/account/settings-ui';
 
@@ -102,9 +102,9 @@ function GuestAccount() {
         />
         <Field label="Bestätigungscode" value={secret} onChangeText={setSecret} inputMode="numeric"
           textContentType="oneTimeCode" maxLength={8} autoCorrect={false} />
-        <Button title="E-Mail bestätigen" loading={action.busy} disabled={secret.replace(/\s/g, '').length !== 6}
+        <Button title="E-Mail bestätigen" haptic="send" loading={action.busy} disabled={secret.replace(/\s/g, '').length !== 6}
           onPress={() => void action.run(() => session.confirmCode(code, secret))} />
-        <Button title="Code erneut senden" variant="secondary" disabled={action.busy}
+        <Button title="Code erneut senden" variant="secondary" haptic="send" disabled={action.busy}
           onPress={() => void action.run(async () => { setCode(await session.resendCode(code)); setSecret(''); })} />
         <Button title="Zurück zur Anmeldung" variant="plain" disabled={action.busy}
           onPress={() => { setCode(null); setSecret(''); action.reset(); }} />
@@ -136,10 +136,10 @@ function GuestAccount() {
               <View style={styles.ageConfirmation}>
                 <AppText style={styles.ageLabel}>Ich bin mindestens 16 Jahre alt.</AppText>
                 <Switch accessibilityLabel="Ich bin mindestens 16 Jahre alt" value={ageConfirmed}
-                  disabled={action.busy} onValueChange={setAgeConfirmed} />
+                  disabled={action.busy} onValueChange={(on) => { haptic('select'); setAgeConfirmed(on); }} />
               </View>
             )}
-            <Button title={registering ? 'Konto erstellen' : 'Anmelden'} loading={action.busy}
+            <Button title={registering ? 'Konto erstellen' : 'Anmelden'} haptic="send" loading={action.busy}
               disabled={!email.trim() || password.length < (registering ? 8 : 1) || (registering && !ageConfirmed)} onPress={submit} />
             <Button title={registering ? 'Zur Anmeldung' : 'Konto erstellen'} disabled={action.busy} variant="secondary"
               onPress={() => { setRegistering(!registering); setAgeConfirmed(false); setPassword(''); action.reset(); }} />
@@ -241,7 +241,7 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
     <Screen title="Konto." navigationTitle="Konto" description="Dein Konto gilt für alle Tools.">
       <ProfileCard name={user.name} email={user.email} verified={user.emailVerified}>
         {!user.emailVerified ? (
-          <Button title="Bestätigungslink senden" variant="soft" disabled={disabled}
+          <Button title="Bestätigungslink senden" variant="soft" haptic="send" disabled={disabled}
             onPress={() => void action.run(session.requestEmailVerification, 'Bestätigungslink gesendet.')} />
         ) : null}
       </ProfileCard>
@@ -273,7 +273,7 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
         {sheet === 'name' && (
           <>
             <Field label="Name" value={name} onChangeText={setName} textContentType="name" maxLength={128} />
-            <Button title="Name speichern" disabled={disabled || name.trim() === user.name}
+            <Button title="Name speichern" haptic="send" disabled={disabled || name.trim() === user.name}
               onPress={() => void action.run(async () => {
                 requireAccountScope(scope);
                 await account.updateName({ name: name.trim() || 'Pensum' });
@@ -287,7 +287,7 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
               autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" />
             <Field label="Aktuelles Passwort" value={oldPassword} onChangeText={setOldPassword} secureTextEntry
               textContentType="password" autoCapitalize="none" autoCorrect={false} />
-            <Button title="E-Mail-Adresse ändern"
+            <Button title="E-Mail-Adresse ändern" haptic="send"
               disabled={disabled || !oldPassword || !email.trim() || email.trim() === user.email}
               onPress={() => void action.run(async () => {
                 requireAccountScope(scope);
@@ -303,7 +303,7 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
               textContentType="password" autoCapitalize="none" autoCorrect={false} />
             <Field label="Neues Passwort" value={newPassword} onChangeText={setNewPassword} secureTextEntry
               textContentType="newPassword" autoCapitalize="none" autoCorrect={false} hint="Mindestens 8 Zeichen." />
-            <Button title="Passwort ändern" disabled={disabled || !oldPassword || newPassword.length < 8}
+            <Button title="Passwort ändern" haptic="send" disabled={disabled || !oldPassword || newPassword.length < 8}
               onPress={() => void action.run(async () => {
                 requireAccountScope(scope);
                 await account.updatePassword({ password: newPassword, oldPassword });
@@ -320,7 +320,7 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
                   {device.current ? ' (dieses Gerät)' : ''}</AppText>
                 <AppText variant="caption" tone="muted">{new Date(device.$createdAt).toLocaleString('de-DE')}</AppText>
                 {device.current ? null : (
-                  <Button title="Sitzung beenden" variant="soft" disabled={disabled}
+                  <Button title="Sitzung beenden" variant="soft" haptic="warn" disabled={disabled}
                     onPress={() => void action.run(async () => {
                       requireAccountScope(scope);
                       await account.deleteSession({ sessionId: device.$id });
@@ -334,10 +334,10 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
                 onPress={() => void action.run(async () => { setDevices(await getAccountDevices(scope)); })} />
             ) : null}
             {devices?.some((device) => !device.current) ? (
-              <Button title="Andere Geräte abmelden" variant="secondary" disabled={disabled}
+              <Button title="Andere Geräte abmelden" variant="secondary" haptic="warn" disabled={disabled}
                 onPress={() => void action.run(endOtherDevices, 'Andere Geräte abgemeldet.')} />
             ) : null}
-            <Button title="Überall abmelden" variant="secondary" disabled={disabled}
+            <Button title="Überall abmelden" variant="secondary" haptic="warn" disabled={disabled}
               onPress={() => ask('Überall abmelden?', 'Alle aktiven Sitzungen dieses Kontos werden beendet.', 'Überall abmelden',
                 () => void action.run(() => logout(true)))} />
           </>
@@ -345,7 +345,7 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
         {sheet === 'data' && (
           <>
             <AppText tone="muted">Fächer, Noten, Mindmaps, Karten, Planereinträge und dein Handschrift-Profil liegen in deinem Konto.</AppText>
-            <Button title="Kontodaten als JSON teilen" variant="secondary" disabled={disabled}
+            <Button title="Kontodaten als JSON teilen" variant="secondary" haptic="send" disabled={disabled}
               onPress={() => void action.run(() => shareAccountExport(scope, user))} />
             <Button title="Lerninhalte im Konto löschen" variant="danger" disabled={disabled}
               onPress={() => ask('Lerninhalte löschen?', 'Deine Fächer, Noten, Mindmaps, Karten, Planereinträge und dein Handschrift-Profil werden gelöscht.', 'Inhalte löschen',

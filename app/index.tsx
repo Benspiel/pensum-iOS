@@ -14,8 +14,7 @@ import { ParallaxBackground } from '../src/ui/ParallaxBackground';
 import { motionFactor } from '../src/ui/parallax';
 import { contentMaxWidth, innerWidth, toolGrid } from '../src/ui/wide';
 
-const NAV_MAX = 760;
-const NAV_LOGO_SIZE = 48;
+const NAV_LOGO_SIZE = 32;
 const logo = require('../assets/app-icon.png');
 const appVersion = Constants.expoConfig?.version ?? '0.1.0';
 
@@ -141,7 +140,7 @@ function NavPill({ label, open }: { label: string; open: () => void }) {
       accessibilityRole="header"
       style={[
         styles.pill,
-        { backgroundColor: colors.surface, borderColor: colors.border, opacity: entrance, transform: [{ translateY }] },
+        { backgroundColor: colors.surface, borderColor: colors.canvas, opacity: entrance, transform: [{ translateY }] },
       ]}
     >
       <View style={styles.brand}>
@@ -152,7 +151,7 @@ function NavPill({ label, open }: { label: string; open: () => void }) {
         />
         <AppText variant="h4" numberOfLines={1} style={styles.brandText}>Pensum</AppText>
       </View>
-      <Button title={label} size="md" style={styles.navAccount} onPress={open} accessibilityHint="Öffnet Anmeldung und Konto" />
+      <Button title={label} size="sm" onPress={open} accessibilityHint="Öffnet Anmeldung und Konto" />
     </Animated.View>
   );
 }
@@ -160,7 +159,7 @@ function NavPill({ label, open }: { label: string; open: () => void }) {
 function Hero({ accountLabel, showTools, openAccount }: { accountLabel: string; showTools: () => void; openAccount: () => void }) {
   return (
     <View style={styles.hero}>
-      <AppText variant="display" accessibilityRole="header" style={styles.center}>Pensum</AppText>
+      <AppText variant="display" accessibilityRole="header" style={styles.center}>Alles fürs Pensum.</AppText>
       <AppText variant="bodyLg" tone="muted" style={[styles.center, styles.heroSub]}>
         Schul-Tools an einem Ort. Einmal anmelden, überall angemeldet. Oder einfach ohne Konto loslegen.
       </AppText>
@@ -202,6 +201,7 @@ function ToolTile({ tool, availability, width, open }: {
   return (
     <PressableScale
       scaleTo={0.98}
+      haptic="tap"
       accessibilityRole="link"
       accessibilityLabel={[tool.title, tool.description, badge && !locked ? badge.label : undefined, note].filter(Boolean).join('. ')}
       accessibilityState={{ disabled }}
@@ -251,30 +251,28 @@ const styles = StyleSheet.create({
   column: { width: '100%', alignSelf: 'center' },
   scroller: { flex: 1 },
   scrollContent: { paddingBottom: spacing.xxxl },
+  /** Web `.nav-pill`: schwebende Pille, so breit wie ihr Inhalt und mittig, mit weißem 4-px-Rand statt Schatten. */
   pill: {
-    width: '100%',
-    maxWidth: NAV_MAX,
     alignSelf: 'center',
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    minHeight: 68,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderWidth: 1,
+    gap: spacing.xs,
+    minHeight: 60,
+    padding: spacing.sm,
+    paddingLeft: spacing.lg,
+    borderWidth: 4,
     borderRadius: radius.pill,
     marginBottom: spacing.sm,
   },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, marginRight: spacing.sm, flexShrink: 1 },
   logo: { width: NAV_LOGO_SIZE, height: NAV_LOGO_SIZE, borderRadius: squircleRadius(NAV_LOGO_SIZE), borderCurve: 'continuous' },
-  brandText: { fontSize: 20, flexShrink: 1 },
-  navAccount: { paddingHorizontal: spacing.md },
+  brandText: { fontSize: 18, flexShrink: 1 },
   hero: { alignItems: 'center', paddingTop: spacing.xxxl, paddingBottom: spacing.xxl, gap: spacing.xl },
   center: { textAlign: 'center' },
   version: { marginTop: spacing.xxl },
   heroSub: { maxWidth: 460 },
-  heroActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.md },
+  heroActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.md, marginTop: spacing.sm },
   toolSection: { gap: spacing.lg },
   list: {},
   grid: { flexDirection: 'row', flexWrap: 'wrap' },

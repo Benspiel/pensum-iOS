@@ -3,6 +3,7 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Platform, StyleSheet, Switch, View } from "react-native";
 import { AppText, Field } from "../../../ui";
+import { haptic } from "../../../ui/haptics";
 import { radius, spacing, usePensumTheme } from "../../../theme";
 import { formatDateInput, pickerDate, textFromPickerDate } from "../model";
 import { FormMessage } from "./FormMessage";
@@ -42,7 +43,7 @@ export function DateField({ label, placeholder, value, today, error, onChange }:
         )}
         <Switch
           value={enabled}
-          onValueChange={(on) => onChange(on ? formatDateInput(today) : "")}
+          onValueChange={(on) => { haptic("select"); onChange(on ? formatDateInput(today) : ""); }}
           accessibilityLabel={`${label} festlegen`}
           trackColor={{ true: colors.accentFill }}
         />

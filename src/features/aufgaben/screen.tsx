@@ -6,6 +6,7 @@ import { Image, StyleSheet, View } from 'react-native';
 import { documents } from '../../../modules/pensum-documents';
 import { executeFunction, functionIds } from '../../backend';
 import { useAccountGuard } from '../appwrite-tools/account-scope';
+import { radius, spacing } from '../../theme';
 import { AppText, Button, Card, ErrorState, Field, Screen } from '../../ui';
 import { consentToGemini, errorText, useToolAction } from '../appwrite-tools/actions';
 import { pickPhoto, prepareImage, removeTemporaryFile, type ImageSource } from '../appwrite-tools/images';
@@ -134,15 +135,15 @@ export function AufgabenScreen() {
             <AppText tone="muted">{pdf.name} · Seite {pdf.page} von {pdf.pages}</AppText>
             {pdf.pages > 1 && (
               <View style={styles.actions}>
-                <Button title="Vorherige Seite" variant="plain" disabled={action.busy || pdf.page === 1} onPress={() => selectPage(pdf.page - 1)} />
-                <Button title="Nächste Seite" variant="plain" disabled={action.busy || pdf.page === pdf.pages} onPress={() => selectPage(pdf.page + 1)} />
+                <Button title="Vorherige Seite" variant="plain" haptic="select" disabled={action.busy || pdf.page === 1} onPress={() => selectPage(pdf.page - 1)} />
+                <Button title="Nächste Seite" variant="plain" haptic="select" disabled={action.busy || pdf.page === pdf.pages} onPress={() => selectPage(pdf.page + 1)} />
               </View>
             )}
           </>
         )}
         {sheet && (
           <View
-            style={{ aspectRatio: sheet.width / sheet.height, width: '100%', alignSelf: 'center', maxWidth: 640 }}
+            style={[styles.preview, { aspectRatio: sheet.width / sheet.height }]}
             onLayout={({ nativeEvent }) => setPreviewWidth(nativeEvent.layout.width)}
           >
             <Image source={{ uri: sheet.uri }} style={StyleSheet.absoluteFill} resizeMode="stretch" accessibilityLabel="Ausgewähltes Arbeitsblatt" />
@@ -161,7 +162,7 @@ export function AufgabenScreen() {
             ))}
           </View>
         )}
-        <Button title="Vorschläge erstellen" loading={action.busy} disabled={!sheet || Boolean(usage && usage.runs >= usage.maxRuns)} onPress={solve} />
+        <Button title="Vorschläge erstellen" haptic="send" loading={action.busy} disabled={!sheet || Boolean(usage && usage.runs >= usage.maxRuns)} onPress={solve} />
       </Card>
       {fields.length > 0 && (
         <Card>
@@ -172,12 +173,12 @@ export function AufgabenScreen() {
           ))}
           {skipped.length > 0 && <AppText tone="muted">{skipped.join('\n')}</AppText>}
           <View style={styles.actions}>
-            <Button title="Normale Schrift" variant={handwritten ? 'secondary' : 'primary'} onPress={() => setHandwritten(false)} disabled={action.busy} />
-            <Button title="Handschriftstil" variant={handwritten ? 'primary' : 'secondary'} onPress={() => setHandwritten(true)} disabled={action.busy} />
+            <Button title="Normale Schrift" variant={handwritten ? 'secondary' : 'primary'} haptic="select" onPress={() => setHandwritten(false)} disabled={action.busy} />
+            <Button title="Handschriftstil" variant={handwritten ? 'primary' : 'secondary'} haptic="select" onPress={() => setHandwritten(true)} disabled={action.busy} />
           </View>
           <View style={styles.actions}>
-            <Button title="PDF teilen" variant="secondary" onPress={() => share(true)} disabled={action.busy} />
-            <Button title="Bild teilen" variant="secondary" onPress={() => share(false)} disabled={action.busy} />
+            <Button title="PDF teilen" variant="secondary" haptic="send" onPress={() => share(true)} disabled={action.busy} />
+            <Button title="Bild teilen" variant="secondary" haptic="send" onPress={() => share(false)} disabled={action.busy} />
           </View>
           <Button title="Antworttexte in Goodnotes-Tool übernehmen" variant="secondary" disabled={action.busy} onPress={() => {
             putHandoff(fields.map((field) => field.text).filter((text) => text.trim()).join('\n'), 'Arbeitsblatt');
@@ -189,4 +190,11 @@ export function AufgabenScreen() {
   );
 }
 
-const styles = StyleSheet.create({ actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' } });
+const styles = StyleSheet.create({
+  actions: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  /** Vorschau wie eine Fläche der App: Radius 16, Inhalt beschnitten */
+  preview: {
+    width: '100%', alignSelf: 'center', maxWidth: 640,
+    borderRadius: radius.field, borderCurve: 'continuous', overflow: 'hidden',
+  },
+});

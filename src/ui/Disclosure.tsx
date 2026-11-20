@@ -1,9 +1,12 @@
+/* Aufklappbarer Bereich wie die FAQ-Zeilen der Website (`css/pensum.css` `.faq-row`): getönte Fläche mit Radius 16,
+ * Kopfzeile mindestens 56 hoch, Pfeil dreht sich. Auf- und Zuklappen gibt eine kurze Rückmeldung (Web: haptic("open"/"close")). */
 import { SymbolView } from "expo-symbols";
 import { useState, type ReactNode } from "react";
-import { Animated, LayoutAnimation, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Animated, LayoutAnimation, StyleSheet, View, useWindowDimensions } from "react-native";
 import { AppText, Panel } from "./index";
-import { DURATION, Reveal, useReduceMotion, useToggleValue } from "./motion";
-import { gutter, spacing, usePensumTheme } from "../theme";
+import { DURATION, PressableScale, Reveal, useReduceMotion, useToggleValue } from "./motion";
+import { haptic } from "./haptics";
+import { gutter, radius, spacing, usePensumTheme } from "../theme";
 
 export function Disclosure({ title, children, defaultOpen = false, large = false }: {
   title: string;
@@ -19,6 +22,7 @@ export function Disclosure({ title, children, defaultOpen = false, large = false
   const turn = useToggleValue(open, DURATION.change);
 
   function toggle() {
+    haptic(open ? "close" : "open");
     // Die Höhe gleitet mit (LayoutAnimation), der Inhalt blendet dazu ein bzw. aus.
     if (!reduce) {
       LayoutAnimation.configureNext({
@@ -33,7 +37,8 @@ export function Disclosure({ title, children, defaultOpen = false, large = false
 
   return (
     <Panel style={styles.box}>
-      <Pressable
+      <PressableScale
+        scaleTo={1}
         accessibilityRole="button"
         accessibilityLabel={title}
         accessibilityState={{ expanded: open }}
@@ -41,7 +46,7 @@ export function Disclosure({ title, children, defaultOpen = false, large = false
         style={({ pressed }) => [
           styles.head,
           large && { paddingHorizontal: panelInset, paddingVertical: spacing.lg },
-          { opacity: pressed ? 0.6 : 1 },
+          { backgroundColor: pressed ? colors.border : "transparent" },
         ]}
       >
         <AppText variant={large ? "h4" : "link"} style={styles.title}>{title}</AppText>
@@ -53,7 +58,7 @@ export function Disclosure({ title, children, defaultOpen = false, large = false
             name={{ ios: "chevron.down", android: "expand_more", web: "expand_more" }}
           />
         </Animated.View>
-      </Pressable>
+      </PressableScale>
       {open ? (
         <Reveal distance={6} duration={DURATION.change + 60} style={[styles.body, large && { paddingHorizontal: panelInset, paddingBottom: panelInset }]}>
           {children}
@@ -64,8 +69,9 @@ export function Disclosure({ title, children, defaultOpen = false, large = false
 }
 
 const styles = StyleSheet.create({
-  box: { padding: 0, gap: 0, overflow: "hidden" },
-  head: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+  /** Web `.faq-row`: Radius 16 (nicht 24 wie eine Karte), damit aufklappbare Zeilen ruhiger wirken. */
+  box: { padding: 0, gap: 0, overflow: "hidden", borderRadius: radius.field },
+  head: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
   title: { flexShrink: 1 },
   body: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
 });
