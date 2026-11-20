@@ -13,3 +13,4 @@ node_modules/
 /PENSUM-IOS-STATUS.md
 /.pensum-ios-status.lock/
 /.PENSUM-IOS-STATUS.*.tmp
+/dist-web/

@@ -22,6 +22,7 @@ const config: ExpoConfig = {
     ...(appleTeamId ? { appleTeamId } : {}),
     infoPlist: { ITSAppUsesNonExemptEncryption: false },
   },
+  web: { bundler: 'metro', output: 'single', favicon: './assets/app-icon.png' },
   plugins: [
     'expo-router',
     'expo-font',
