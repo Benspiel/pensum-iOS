@@ -28,6 +28,7 @@ export const functionIds = {
   aufgaben: 'aufgaben',
   kiChat: 'ki-chat',
   adminStats: 'admin-stats',
+  pushSend: 'push-send',
 } as const;
 
 export const teamIds = { tester: 'tester', kiTester: 'ki-tester', admin: 'admin' } as const;

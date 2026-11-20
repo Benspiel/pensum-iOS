@@ -5,7 +5,8 @@ import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 're
 import { executeFunction, functionIds } from '../../backend';
 import { getTool, tools } from '../../navigation/tools';
 import { radius, spacing, squircleRadius, usePensumTheme } from '../../theme';
-import { AppText, Button, ErrorState, LoadingState, Screen } from '../../ui';
+import { AppText, Button, ErrorState, Field, LoadingState, Screen } from '../../ui';
+import { confirmAction } from '../appwrite-tools/actions';
 import { errorText } from '../appwrite-tools/actions';
 import { barHeights, berlinToday, clock, dayAgo, fmt, pct, weekday, type Count } from './format';
 
@@ -201,6 +202,48 @@ function PeopleWidget({ people }: { people: People }) {
   );
 }
 
+/** Mitteilung an alle Geräte senden (Function push-send, nur Team „Admin“). Erst zählen, dann nach Rückfrage senden. */
+function BroadcastWidget() {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState('');
+  const [error, setError] = useState('');
+  const ready = title.trim().length > 0 && body.trim().length > 0;
+
+  async function run(dryRun: boolean) {
+    setBusy(true);
+    setError('');
+    setResult('');
+    try {
+      const reply = await executeFunction<{ recipients: number; removed?: number }>(functionIds.pushSend, { title: title.trim(), body: body.trim(), dryRun });
+      if (dryRun) setResult(`Die Mitteilung würde ${fmt(reply.recipients)} Geräte erreichen.`);
+      else { setResult(`Gesendet an ${fmt(reply.recipients)} Geräte.`); setTitle(''); setBody(''); }
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function send() {
+    if (!ready || busy) return;
+    if (await confirmAction('Mitteilung an alle senden?', `„${title.trim()}“ geht sofort an alle Geräte mit Benachrichtigungen.`, 'Senden', true)) await run(false);
+  }
+
+  return (
+    <Widget title="Mitteilung senden" icon="plus" note="an alle Geräte">
+      <Field label="Titel" value={title} onChangeText={setTitle} maxLength={60} editable={!busy} placeholder="z. B. Neue Funktion" />
+      <Field label="Text" value={body} onChangeText={setBody} maxLength={240} multiline editable={!busy} placeholder="Kurze Nachricht, höchstens 240 Zeichen" />
+      {error ? <AppText variant="bodySm" style={{ color: '#d93025' }}>{error}</AppText> : null}
+      {result ? <AppText variant="bodySm" tone="muted">{result}</AppText> : null}
+      <View style={styles.broadcastActions}>
+        <Button title="Empfänger zählen" variant="secondary" disabled={!ready || busy} onPress={() => void run(true)} style={styles.half} />
+        <Button title="Senden" haptic="send" loading={busy} disabled={!ready} onPress={() => void send()} style={styles.half} />
+      </View>
+    </Widget>
+  );
+}
+
 export function AdminScreen() {
   const [stats, setStats] = useState<Stats>();
   const [people, setPeople] = useState<People>();
@@ -302,6 +345,7 @@ export function AdminScreen() {
               </View>
             </Widget>,
           ], 'r3')}
+          <BroadcastWidget />
           {people ? <PeopleWidget people={people} /> : (
             <View style={[styles.widget, styles.wait, { backgroundColor: colors.surface }]}>
               {peopleLoading ? <LoadingState title="Nutzerliste wird geladen …" /> : null}
@@ -315,6 +359,8 @@ export function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
+  broadcastActions: { flexDirection: 'row', gap: spacing.md },
+  half: { flex: 1 },
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   grid: { gap: spacing.md },
   row: { gap: spacing.md },
