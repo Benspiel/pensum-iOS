@@ -1,4 +1,3 @@
-import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
 import { useFonts } from "expo-font";
 import { useHeaderHeight } from "expo-router/react-navigation";
@@ -10,7 +9,6 @@ import { WebView, type WebViewMessageEvent } from "./engine-view";
 import { gutter, radius, resolveTextStyle, spacing, usePensumTheme } from "../../theme";
 import { AppText, Badge, Button, Panel, Screen } from "../../ui";
 import { Disclosure } from "../../ui/Disclosure";
-import { PressableScale } from "../../ui/motion";
 import { haptic } from "../../ui/haptics";
 import { useWideLayout } from "../../ui/TwoColumn";
 import { takeHandoff } from "../shared/handoff";
@@ -26,7 +24,7 @@ import { useHand } from "./useHand";
 import { deleteQuietly, ENGINE_GIVEUP_MESSAGE } from "./request-queue";
 import { useWebViewChannel } from "./useWebViewChannel";
 import {
-  DEFAULT_SETTINGS, FONTS, HAND_FONT, HAND_VARY, handVaryLabel, INKS, PAPERS, base64ToBytes, bytesToBase64, exportFileNames, exportHint,
+  DEFAULT_SETTINGS, FONTS, HAND_FONT, HAND_VARY, handVaryLabel, INKS, PAPERS, base64ToBytes, exportFileNames, exportHint,
   pageCountLabel, parseHostMessage, rangeLabel, stepValue, type RangeId, type HostMessage, type HostRequest, type InkSettings,
 } from "./protocol";
 
@@ -61,12 +59,9 @@ export default function GoodnotesScreen() {
   const [exportError, setExportError] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [template, setTemplate] = useState<string | null>(null);
   const settingsScroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   const editorTop = useRef(0);
-  // Vorlage merken: stürzt die WebView ab, ist sie in der Engine weg und wird nach dem Neustart erneut geladen
-  const templateRef = useRef<{ name: string; base64: string } | null>(null);
   const giveUp = useCallback(() => setError(ENGINE_GIVEUP_MESSAGE), []);
   const { web, ready, setReady, instance, getQueue, request, handleTerminated } = useWebViewChannel({ idPrefix: "gn", onGiveUp: giveUp });
 
@@ -93,20 +88,11 @@ export default function GoodnotesScreen() {
   // Ohne Handschrift darf sie nicht ausgewählt bleiben (Web: selectFont("Caveat"))
   useEffect(() => { if (hand.loaded && !hand.count && settings.font === HAND_FONT) setSettings((s) => ({ ...s, font: "Caveat", handVary: 0 })); }, [hand.loaded, hand.count, settings.font]);
 
-  // Nach (Neu-)Start der Engine: gemerkte Vorlage wieder laden, danach Vorschau neu rendern
+  // Nach (Neu-)Start der Engine die Vorschau neu rendern.
   useEffect(() => {
     if (!ready) return;
-    let stale = false;
-    (async () => {
-      const t = templateRef.current;
-      if (t) {
-        try { await call({ type: "template", name: t.name, base64: t.base64 }); }
-        catch (e) { if (!stale) { templateRef.current = null; setTemplate(null); setError(e instanceof Error ? e.message : "Die Vorlage konnte nicht neu geladen werden."); } }
-      }
-      if (!stale) setEpoch((n) => n + 1);
-    })();
-    return () => { stale = true; };
-  }, [ready, call]);
+    setEpoch((n) => n + 1);
+  }, [ready]);
 
   // Vorschau neu rendern (mit kurzer Verzögerung wie im Web)
   useEffect(() => {
@@ -119,31 +105,9 @@ export default function GoodnotesScreen() {
       } catch (e) { if (!stale) setError(e instanceof Error ? e.message : "Die Vorschau konnte nicht erstellt werden."); }
     }, 250);
     return () => { stale = true; clearTimeout(t); };
-  }, [ready, epoch, text, settings, template, hand.packed, call]);
+  }, [ready, epoch, text, settings, hand.packed, call]);
 
   const patch = (p: Partial<InkSettings>) => setSettings((s) => ({ ...s, ...p }));
-
-  async function pickTemplate() {
-    try {
-      const r = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
-      const asset = r.canceled ? null : r.assets[0];
-      if (!asset) return;
-      const picked = new File(asset.uri);
-      let base64: string;
-      try {
-        const size = asset.size ?? picked.size;
-        if (!size || size > 25 * 1024 * 1024) throw new Error("Wähle eine .goodnotes-Vorlage bis 25 MB.");
-        base64 = bytesToBase64(await picked.bytes());
-      } finally {
-        deleteQuietly(picked);
-      }
-      const res = await call({ type: "template", name: asset.name, base64 });
-      if (res.type === "template-ok") { templateRef.current = { name: asset.name, base64 }; setTemplate(asset.name); setNotice("Eigene Vorlage geladen."); }
-    } catch (e) { templateRef.current = null; setTemplate(null); setError(e instanceof Error ? e.message : "Datei konnte nicht gelesen werden."); }
-  }
-  async function dropTemplate() {
-    try { await call({ type: "clear-template" }); templateRef.current = null; setTemplate(null); } catch (e) { setError(e instanceof Error ? e.message : "Vorlage konnte nicht entfernt werden."); }
-  }
 
   async function exportAs(kind: "pdf" | "goodnotes") {
     if (!hasText || !ready || busy) return;
@@ -182,7 +146,7 @@ export default function GoodnotesScreen() {
   const compactPageHeight = Math.round(Math.max(128, Math.min(224, height * 0.28)));
   const textHeight = Math.round(Math.max(224, Math.min(300, height * 0.3)) * Math.max(1, fontScale));
   const exportBlocked = !ready || !!busy || !hasText;
-  const paper = template ? "Eigene Vorlage" : (PAPERS.find((entry) => entry.id === settings.paper)?.label ?? "Liniert");
+  const paper = PAPERS.find((entry) => entry.id === settings.paper)?.label ?? "Liniert";
   const exportSummary = `Vorlage: ${paper} · ${settings.mode === "ink" ? "echte Tinte" : "PDF-Seite"}`;
   function openExport() {
     Keyboard.dismiss();
@@ -314,26 +278,6 @@ export default function GoodnotesScreen() {
       <StepperRow label="Unregelmäßigkeit" valueLabel={rangeLabel("jitter", settings.jitter)} onStep={stepFor("jitter", "jitter", settings.jitter)} />
     </View>
   );
-  const templatePanel = (
-    <View style={[styles.template, { borderTopColor: colors.border }]}>
-      <AppText variant="fieldLabel">Eigene Vorlage</AppText>
-      <PressableScale
-        scaleTo={0.99}
-        haptic="tap"
-        accessibilityRole="button"
-        accessibilityLabel={template ? "Andere Vorlage wählen" : "Vorlage wählen"}
-        accessibilityState={{ disabled: !ready }}
-        disabled={!ready}
-        onPress={pickTemplate}
-        style={[styles.drop, { backgroundColor: colors.canvas, borderColor: template ? colors.ink : colors.muted, borderStyle: template ? "solid" : "dashed", opacity: ready ? 1 : 0.5 }]}
-      >
-        {template ? <Badge label="Gespeichert" /> : null}
-        <AppText variant="fieldLabel" accessible={false}>{template ? "Andere Vorlage wählen" : "Vorlage wählen"}</AppText>
-        <AppText variant="bodySm" tone="muted" accessible={false}>{template ? `Geladen: ${template}` : "Nur nötig, wenn du ein anderes Format brauchst. Wähle eine einseitige .goodnotes-Datei."}</AppText>
-      </PressableScale>
-      {template ? <Button title="Entfernen" accessibilityLabel="Eigene Vorlage entfernen" variant="plain" size="sm" haptic="warn" onPress={dropTemplate} style={styles.removeTemplate} /> : null}
-    </View>
-  );
   const engine = (
     <View style={styles.hidden} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <WebView<unknown> key={instance} ref={web} originWhitelist={["about:*", "data:*"]} source={{ html: GOODNOTES_HOST_HTML, baseUrl: "about:blank" }}
@@ -347,7 +291,7 @@ export default function GoodnotesScreen() {
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={headerHeight}>
       {engine}
       <Screen
-        navigationTitle="Goodnotes-Tool"
+        navigationTitle="Handschrift-Tool"
         scroll={false} wide contentStyle={styles.screen}
         footer={hasText ? (
           <ExportBar
@@ -378,12 +322,10 @@ export default function GoodnotesScreen() {
             {split ? (
               <SectionPanel title="Stil.">
                 {stylePanel}
-                {templatePanel}
               </SectionPanel>
             ) : (
               <Disclosure title="Stil." large>
                 {stylePanel}
-                {templatePanel}
               </Disclosure>
             )}
           </ScrollView>
@@ -395,7 +337,6 @@ export default function GoodnotesScreen() {
         busy={!!busy}
         error={exportError}
         rows={[
-          { id: "gn", title: "Als Goodnotes", hint: ".goodnotes-Datei zum Öffnen in Goodnotes", symbol: { ios: "pencil.line", android: "edit", web: "edit" }, accessibilityLabel: "Als Goodnotes exportieren", busy: busy === "goodnotes", disabled: exportBlocked, onPress: () => void exportAs("goodnotes") },
           { id: "pdf", title: "Als PDF", hint: "Zum Drucken und Teilen", symbol: { ios: "doc.text", android: "description", web: "description" }, accessibilityLabel: "Als PDF exportieren", busy: busy === "pdf", disabled: exportBlocked, onPress: () => void exportAs("pdf") },
         ]}
       />

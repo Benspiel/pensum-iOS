@@ -15,6 +15,8 @@ const exportTables = {
   planer: tableIds.planner,
   kiChats: tableIds.chats,
   kiChatNachrichten: tableIds.chatMessages,
+  werkzeugNutzung: tableIds.toolVisits,
+  pushGeraete: tableIds.pushDevices,
 };
 
 const contentsTables = [

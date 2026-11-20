@@ -1,6 +1,7 @@
 import type { SymbolViewProps } from 'expo-symbols';
 
 import { noToolAccess, type ToolAccess } from '../contracts';
+import { aiEnabled } from '../backend/config';
 
 // Sichtbarkeit und Reihenfolge folgen Pensum js/tools.js und js/home.js (770dbe4). Spiele sind vom iOS-Umfang ausgenommen.
 export const TOOL_ORDER = [
@@ -23,7 +24,7 @@ export interface Tool {
 
 const definitions: Record<ToolId, Omit<Tool, 'id'>> = {
   goodnotes: {
-    title: 'Goodnotes-Tool',
+    title: 'Handschrift-Tool',
     description: 'Text in Handschrift verwandeln und als Goodnotes-Datei oder PDF exportieren.',
     symbol: { ios: 'pencil.line', android: 'draw', web: 'draw' },
     access: 'public',
@@ -34,28 +35,28 @@ const definitions: Record<ToolId, Omit<Tool, 'id'>> = {
     description: 'Ein Thema mit KI in einer Mindmap aufbereiten und im Editor weiterbearbeiten.',
     symbol: { ios: 'point.3.connected.trianglepath.dotted', android: 'account_tree', web: 'account_tree' },
     access: 'public',
-    implementation: 'native',
+    implementation: aiEnabled ? 'native' : 'unavailable',
   },
   kichat: {
     title: 'KI-Chat',
     description: 'Mit der Gemini-KI chatten und Unterhaltungen im Konto weiterführen.',
     symbol: { ios: 'bubble.left.and.bubble.right', android: 'forum', web: 'forum' },
     access: 'kiTester',
-    implementation: 'native',
+    implementation: aiEnabled ? 'native' : 'unavailable',
   },
   aufgaben: {
     title: 'Aufgaben',
     description: 'Ein Arbeitsblatt mit KI ausfüllen und das Ergebnis als PDF oder Bild exportieren.',
     symbol: { ios: 'checkmark.rectangle', android: 'assignment_turned_in', web: 'assignment_turned_in' },
     access: 'tester',
-    implementation: 'native',
+    implementation: aiEnabled ? 'native' : 'unavailable',
   },
   abschreiben: {
     title: 'Abschreiben',
     description: 'Text aus einem Tafelbild erkennen, kopieren oder in Handschrift umwandeln.',
     symbol: { ios: 'camera.viewfinder', android: 'document_scanner', web: 'document_scanner' },
     access: 'public',
-    implementation: 'native',
+    implementation: aiEnabled ? 'native' : 'unavailable',
   },
   karteikarten: {
     title: 'Karteikarten',
@@ -101,6 +102,7 @@ export function getTool(id: string | undefined) {
 }
 
 export function getToolAvailability(tool: Tool, access: ToolAccess = noToolAccess): ToolAvailability {
+  if (tool.implementation === 'unavailable') return 'hidden';
   if (tool.access === 'public' || access[tool.access]) return 'available';
   return tool.access === 'tester' ? 'locked' : 'hidden';
 }

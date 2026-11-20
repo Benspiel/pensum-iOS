@@ -6,8 +6,8 @@ export const bundleIdentifier = process.env.EXPO_PUBLIC_IOS_BUNDLE_ID || 'dev.bu
 export const appwriteCallbackScheme = `appwrite-callback-${projectId}`;
 // Appwrite Messaging: APNs-Anbieter „Pensum Apple“ und das Thema, das alle Geräte abonnieren (Nachrichten an alle in der Console).
 export const pushProviderId = process.env.EXPO_PUBLIC_PUSH_PROVIDER_ID || '6b0014fb002ccb259a7e';
-export const pushTopicId = 'alle';
 export const googleAuthEnabled = process.env.EXPO_PUBLIC_GOOGLE_AUTH_ENABLED === 'true';
+export const aiEnabled = process.env.EXPO_PUBLIC_AI_ENABLED === 'true';
 
 export const tableIds = {
   subjects: 'subjects',

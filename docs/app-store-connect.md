@@ -28,7 +28,7 @@ Was ich nicht weiß und du eintragen musst: dein Name und deine Kontaktdaten, di
 **Werbetext** (max. 170, jederzeit änderbar):
 
 ```
-Notenrechner, Karteikarten, Planer, Mindmaps und Handschrift-Tool: die Schul-Tools von Pensum an einem Ort. Ohne Konto loslegen, ohne Werbung und ohne Tracking.
+Notenrechner, Karteikarten, Planer und Handschrift-Tool: die Schul-Tools von Pensum an einem Ort. Ohne Konto loslegen, ohne Werbung und ohne Tracking.
 ```
 
 **Beschreibung** (max. 4000):
@@ -45,25 +45,19 @@ Bis zu 5 Stapel mit Vorder- und Rückseite. Lerne mit 5 Leveln oder der Reihe na
 PLANER
 Hausaufgaben mit Fälligkeit und Klausurtermine mit Countdown. Verknüpfe eine Klausur mit deinem Karteikarten-Stapel und lerne direkt dafür.
 
-MINDMAP-GENERATOR
-Gib ein Thema ein, eine KI erstellt eine Mindmap. Du kannst sie im Editor verändern, in Standardschrift oder in deiner eigenen Handschrift anzeigen und als PDF exportieren. Dafür brauchst du ein Konto.
-
-ABSCHREIBEN
-Fotografiere ein Tafelbild, eine KI liest den Text für dich ab. Du kopierst ihn oder verwandelst ihn in Handschrift. Dafür brauchst du ein Konto.
-
 HANDSCHRIFT-TOOL
 Getippten Text in Handschrift verwandeln, auch in deiner eigenen gezeichneten Schrift, und als PDF oder Datei zum Weiterverwenden exportieren. Läuft auf deinem Gerät.
 
 DEIN DATENSCHUTZ
-Keine Werbung, kein Tracking, keine Weitergabe deiner Daten zu Werbezwecken. KI-Funktionen senden ausgewählte Inhalte erst nach deiner ausdrücklichen Zustimmung zur Verarbeitung an Google Gemini. Ein Konto ist ab 16 Jahren möglich, jüngere nutzen die Gast-Werkzeuge ohne Konto. Du kannst dein Konto und alle Daten jederzeit in der App löschen.
+Keine Werbung, kein Tracking, keine Weitergabe deiner Daten zu Werbezwecken. Ein Konto ist ab 16 Jahren möglich, jüngere nutzen die Gast-Werkzeuge ohne Konto. Du kannst dein Konto und alle Daten jederzeit in der App löschen.
 
-Pensum ist ein privates Angebot und keine Einrichtung deiner Schule. Nutze die Ergebnisse der KI-Werkzeuge nur im Rahmen der Regeln deiner Schule und prüfe sie, bevor du danach lernst.
+Pensum ist ein privates Angebot und keine Einrichtung deiner Schule.
 ```
 
 **Schlüsselwörter** (max. 100, durch Komma, ohne Leerzeichen, ohne Markennamen):
 
 ```
-Schule,Noten,Notenrechner,Karteikarten,Vokabeln,Planer,Hausaufgaben,Klausur,Mindmap,Handschrift
+Schule,Noten,Notenrechner,Karteikarten,Vokabeln,Planer,Hausaufgaben,Klausur,Handschrift,Lernen
 ```
 
 **Was ist neu** (Version 1.0): `Erste Version von Pensum für iPhone und iPad.`
@@ -86,13 +80,13 @@ Alle vier Adressen antworten mit HTTP 200 (am 19.11.2026 geprüft). Die Datensch
 - **iPhone 6,9 Zoll** (zum Beispiel iPhone 16/17 Pro Max): 1320 × 2868 (oder die von App Store Connect gezeigte Größe).
 - **iPad 13 Zoll**: 2064 × 2752 (oder 2048 × 2732). Pflicht, weil die App iPad unterstützt (`supportsTablet: true`).
 - Mach sie auf dem Gerät mit dem TestFlight-Build (Seitentaste + Lauter) und lade die Originale hoch. Auf Windows gibt es keinen Simulator.
-- Vorschlag je 5 bis 6 Bilder, mit **ausgedachten Daten** (Fach „Mathe“, Stapel „Vokabeln Unit 3“, Thema „Photosynthese“, keine echten Namen oder Schulunterlagen): Startseite, Notenrechner mit Durchschnitt, Planer mit Klausur und Countdown, Karteikarten beim Lernen, Mindmap, Handschrift-Vorschau. Auf dem iPad zeigt die Zwei-Spalten-Ansicht am besten, was die App kann.
+- Vorschlag je 5 Bilder, mit **ausgedachten Daten** (Fach „Mathe“, Stapel „Vokabeln Unit 3“, keine echten Namen oder Schulunterlagen): Startseite, Notenrechner mit Durchschnitt, Planer mit Klausur und Countdown, Karteikarten beim Lernen, Handschrift-Vorschau. Auf dem iPad zeigt die Zwei-Spalten-Ansicht am besten, was die App kann.
 
 ## 6. Altersfreigabe
 
 Beantworte den Fragebogen nach den tatsächlichen Funktionen. Meine Einschätzung (du prüfst sie gegen die aktuellen Fragen von Apple):
 - Keine Gewalt, kein Sex, keine Glücksspiele, keine Waffen, keine Medizin-/Behandlungsinhalte, keine freie Weitergabe von Nutzerinhalten an andere (Mindmaps und Karten sind privat).
-- **KI:** Die App erzeugt Inhalte mit einer KI (Mindmaps, Abschreiben, Karteikarten für Tester). Ein offener Chat ist nur für freigeschaltete Tester vorhanden (kein Teil des normalen Umfangs). Beantworte die Fragen zu KI-erzeugten Inhalten ehrlich mit „ja“.
+- **KI:** Im Production-Build ist `EXPO_PUBLIC_AI_ENABLED=false`; KI-Werkzeuge und KI-Karteikarten sind darin nicht zugänglich.
 - Ein **Konto** ist laut Nutzungsbedingungen ab 16 Jahren. Die Gast-Werkzeuge nutzt jeder ohne Konto. Das beeinflusst die Altersfreigabe der App im Store nicht von selbst, gehört aber in die Review-Hinweise.
 
 ## 7. App-Datenschutz („Datenschutz-Angaben“)
@@ -103,16 +97,17 @@ Die Angaben müssen zu `docs/ios-review-notizen.md` und der Datenschutzerklärun
 - **Erhoben und mit dem Nutzer verknüpft** (nur bei Konto), Zweck „App-Funktionalität“:
   - Kontaktdaten: E-Mail-Adresse, Name (optional)
   - Identifikatoren: Nutzer-ID
-  - Nutzerinhalte: Noten und Fächer, Karteikarten, Planer-Einträge, Mindmaps, Handschrift-Profil; für Tester Chats; bei KI-Nutzung gesendete Fotos/PDFs/Texte
-  - Nutzung: Aufrufe je Tool (Zähler pro Konto für Tageslimits und Statistik)
+  - Nutzerinhalte: Noten und Fächer, Karteikarten, Planer-Einträge und Handschrift-Profil
+  - Nutzung: Aufrufe je Werkzeug, soweit serverseitig erfasst
+  - Identifikatoren: Apple-Push-Token und Geräteplattform, wenn die Person Mitteilungen einschaltet
   - Diagnose: Sitzungsdaten wie Geräteart und grobe IP-Angaben (laut Datenschutzerklärung)
 - **Nicht erhoben:** Standort, Kontakte, Gesundheit, Finanzdaten, Browserverlauf, Werbe-ID.
 - Im Gastmodus bleiben die Daten auf dem Gerät und werden nicht übertragen.
-- **Dritte:** Google Gemini verarbeitet KI-Anfragen (über den Pensum-Server, nach ausdrücklicher Zustimmung in der App). Prüfe die Angabe, ob Google die Daten für eigene Zwecke nutzt, anhand der Bedingungen deines Gemini-Zugangs, bevor du sie bestätigst.
+- **Dritte:** Der Production-Build bietet keine Gemini-Funktion an. Die Datenschutzerklärung muss den iOS-Umfang getrennt vom weiter bestehenden Webangebot beschreiben.
 
 ## 8. App-Review-Informationen
 
-- **Anmeldeinformationen:** Kontoanmeldung erforderlich: **Nein** für den Kern (Gastmodus). Lege trotzdem ein Testkonto an (E-Mail bestätigt, Passwort von dir) und trage Benutzername und Passwort hier ein, damit Apple Mindmap, Abschreiben, Export und Kontolöschung prüfen kann. Lege dafür ein eigenes Konto an, das nur für Apple gedacht ist, damit das Löschen den Zugang nicht zerstört (oder lege ein zweites an).
+- **Anmeldeinformationen:** Kontoanmeldung erforderlich: **Nein** für den Kern (Gastmodus). Lege trotzdem ein Testkonto an (E-Mail bestätigt, Passwort von dir) und trage Benutzername und Passwort hier ein, damit Apple Export, Mitteilungen und Kontolöschung prüfen kann. Lege für die Löschprüfung ein zweites Konto an.
 - **Kontakt:** dein Vor- und Nachname, Telefonnummer, E-Mail. Das sind deine Daten, ich trage sie nirgends ein.
 - **Hinweise (Textvorschlag):**
 
@@ -122,8 +117,7 @@ Pensum öffnet direkt im Gastmodus, ohne Anmeldung. Test ohne Konto:
 2. Karteikarten: einen Stapel mit einer Frage und Antwort anlegen. Planer: eine Klausur mit diesem Stapel verknüpfen, dann "Karteikarten lernen" öffnen.
 3. App schließen und neu öffnen: die Einträge bleiben auf dem Gerät.
 Test mit Konto: Tab "Konto" > Anmelden mit dem angegebenen Testkonto. Dort gibt es Datenexport und "Konto löschen" (serverseitig). Bitte die Löschfunktion nur mit dem separaten Löschkonto prüfen.
-KI-Werkzeuge (Mindmap, Abschreiben) senden ausgewählte Inhalte erst nach ausdrücklicher Zustimmung im Dialog an Google Gemini. Bitte nur synthetische Beispiele verwenden. Es gelten Tageslimits.
-Werkzeuge mit der Kennzeichnung "Für Tester" (KI-Chat, Aufgaben, Erklärvideos) sind einer geschlossenen Testgruppe vorbehalten und im normalen Umfang gesperrt.
+KI-Werkzeuge sind in diesem Production-Build deaktiviert und erscheinen nicht in der Werkzeugübersicht.
 Ein Konto ist ab 16 Jahren vorgesehen; jüngere Nutzer verwenden die Gastwerkzeuge ohne Konto. Anmeldung mit Google ist in dieser Version nicht aktiv.
 ```
 
@@ -133,14 +127,14 @@ Ein Konto ist ab 16 Jahren vorgesehen; jüngere Nutzer verwenden die Gastwerkzeu
 - **Werbe-ID (IDFA):** Nein.
 - **Inhalte von Nutzern/Meldefunktion:** Nicht nötig, da Inhalte privat bleiben und nicht geteilt werden.
 - **Anmeldung mit Apple:** Nur nötig, wenn ein Drittanbieter-Login (Google) aktiv ist. Die App ist so gebaut, dass Google standardmäßig aus ist.
-- **Version:** Die App hat `0.1.0`, der Store-Eintrag steht auf „1.0“. Für die Einreichung `version` in `app.config.ts` auf `1.0.0` setzen und neu bauen (nur dann lässt sich der Build dieser Version zuordnen).
+- **Version:** Die App und der Store-Eintrag verwenden Version `1.0`.
 - **Copyright:** `2026 <dein Name oder deine Firma laut Impressum>`.
 
 ## 10. Vor „Zur Prüfung hinzufügen“
 
 1. Echter Gerätetest über TestFlight bestanden (`docs/b-iphone-schnelltest.md`).
 2. Datenschutzerklärung und Impressum vollständig und passend zur App.
-3. Entscheidung zum Namen „Goodnotes-Tool“ und zu den Papier-Vorlagen.
-4. Version auf `1.0.0`, neuer Build, Build der Version zugeordnet.
+3. Rechte an den Papier-Vorlagen belegen oder die benutzerdefinierten Vorlagen vor der Einreichung entfernen.
+4. Production-Build der Store-Version `1.0` zuordnen.
 5. Testkonto und Löschkonto bereit, Screenshots hochgeladen.
 6. Deine ausdrückliche Freigabe zum Einreichen.

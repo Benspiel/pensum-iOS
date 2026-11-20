@@ -46,10 +46,17 @@ export function NotificationSettings({ userId, onChange }: { userId: string; onC
     latest.current = next;
     setPrefs(next);
     if (next === null || (!next.cards && !next.mindmap)) {
-      await removeDevice();
-      latest.current = null;
-      setPrefs(null);
-      report.current?.(null);
+      const result = await removeDevice();
+      if ('error' in result) {
+        latest.current = previous;
+        setPrefs(previous);
+        setError(result.error);
+        haptic('error');
+      } else {
+        latest.current = null;
+        setPrefs(null);
+        report.current?.(null);
+      }
     } else {
       const result = await saveDevice(userId, next);
       if ('error' in result) {

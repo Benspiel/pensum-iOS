@@ -22,7 +22,10 @@
     "production": {
       "distribution": "store",
       "environment": "production",
-      "env": { "EXPO_PUBLIC_PUSH_ENTITLEMENT": "true" },
+      "env": {
+        "EXPO_PUBLIC_PUSH_ENTITLEMENT": "true",
+        "EXPO_PUBLIC_AI_ENABLED": "false"
+      },
       "autoIncrement": true
     }
   },

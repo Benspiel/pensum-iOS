@@ -39,13 +39,13 @@ test("Beschriftungen, IDs, Standardwerte", () => {
 test("Host-HTML: komplett lokal, ohne Netz", () => {
   assert.ok(GOODNOTES_HOST_HTML.includes("createInkEngine"));
   assert.ok(GOODNOTES_HOST_HTML.includes("ReactNativeWebView"));
-  assert.ok(GOODNOTES_HOST_HTML.includes("GOODI_TEMPLATES"));
+  assert.ok(!GOODNOTES_HOST_HTML.includes("window.GOODI_TEMPLATES ="), "keine Goodnotes-Vorlagen im Release-Bundle");
   // Nur die HTML-Hülle prüfen (Bibliothekscode enthält Zeichenketten wie "<link href=", lädt aber nichts nach).
   const shell = GOODNOTES_HOST_HTML.replace(/<script>[\s\S]*?<\/script>/g, "");
   assert.ok(!/<script|<link|<img|<iframe|https?:\/\/(?!data)/i.test(shell.replace(/url\(data:[^)]*\)/g, "")), "keine externen Ressourcen");
   for (const f of FONTS) assert.ok(GOODNOTES_HOST_HTML.includes(`font-family:"${f}"`), f);
   const scripts = [...GOODNOTES_HOST_HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1] as string);
-  assert.equal(scripts.length, 4);
+  assert.equal(scripts.length, 2);
   for (const s of scripts) assert.doesNotThrow(() => new Function(s));
 });
 

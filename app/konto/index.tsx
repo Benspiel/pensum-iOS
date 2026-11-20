@@ -229,7 +229,8 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
     setSheet(null);
   }
   async function logout(everywhere = false) {
-    await removeDevice(); // dieses Gerät bekommt nach dem Abmelden keine Erinnerungen mehr
+    const removed = await removeDevice(); // dieses Gerät bekommt nach dem Abmelden keine Erinnerungen mehr
+    if ('error' in removed) throw new PensumError('server', removed.error);
     try {
       await session.logout({ everywhere });
     } catch (error) {

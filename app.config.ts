@@ -10,7 +10,7 @@ const slug = process.env.EXPO_PUBLIC_EAS_PROJECT_SLUG || 'pensum';
 const config: ExpoConfig = {
   name: 'Pensum',
   slug,
-  version: '0.1.1',
+  version: '1.0.0',
   orientation: 'default',
   scheme: ['pensum', 'appwrite-callback-6af569a7000d660f3559'],
   icon: './assets/app-icon.png',

@@ -4,10 +4,11 @@
  * Die Wünsche (Karteikarten/Mindmap, Uhrzeit) liegen je Gerät in `push_devices`. Alles hier ist Zugabe: Fehler werden als Text gemeldet, nie geworfen. */
 import * as Crypto from 'expo-crypto';
 import * as Notifications from 'expo-notifications';
+import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import type { Models } from 'react-native-appwrite';
 import { account, databaseId, ownerPermissions, tableIds, tablesDB, messaging } from '../backend';
-import { pushProviderId, pushTopicId } from '../backend/config';
+import { pushProviderId } from '../backend/config';
 import { deviceRowId, prefsFromRow, type PushPrefs } from './model';
 
 export { DEFAULT_PUSH_PREFS, hourLabel, stepHour, summary, type PushPrefs } from './model';
@@ -20,6 +21,16 @@ Notifications.setNotificationHandler({
 const supported = Platform.OS === 'ios' || Platform.OS === 'android';
 type DeviceRow = Models.Row & { userId: string; token: string; cards: boolean; cardsHour: number; mindmap: boolean; mindmapHour: number };
 export type PushStatus = 'unsupported' | 'denied' | 'undetermined' | 'granted';
+type PushResult = { ok: true } | { error: string };
+
+const registrationKey = 'pensum.push.registration.v1';
+const legacyBroadcastTopic = 'alle';
+const secureOptions = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
+
+async function savedRegistrationId(): Promise<string | null> {
+  if (!supported) return null;
+  return SecureStore.getItemAsync(registrationKey, secureOptions).catch(() => null);
+}
 
 const codeOf = (reason: unknown) => (reason as { code?: number } | null)?.code;
 
@@ -66,7 +77,7 @@ export async function loadDevice(): Promise<PushPrefs | null> {
 }
 
 /** Legt Push-Ziel, Themen-Abo und Zeile dieses Geräts an oder aktualisiert sie (fragt bei Bedarf die Berechtigung an). */
-export async function saveDevice(userId: string, prefs: PushPrefs): Promise<{ ok: true } | { error: string }> {
+export async function saveDevice(userId: string, prefs: PushPrefs): Promise<PushResult> {
   const found = await requestToken();
   if ('error' in found) return found;
   const id = await rowIdFor(found.token); // gleiche ID für Ziel, Abo und Zeile
@@ -78,9 +89,9 @@ export async function saveDevice(userId: string, prefs: PushPrefs): Promise<{ ok
       await account.updatePushTarget({ targetId: id, identifier: found.token });
     }
     try {
-      await messaging.createSubscriber({ topicId: pushTopicId, subscriberId: id, targetId: id });
+      await messaging.deleteSubscriber({ topicId: legacyBroadcastTopic, subscriberId: id });
     } catch (reason) {
-      if (codeOf(reason) !== 409) throw reason; // Abo besteht schon
+      if (codeOf(reason) !== 404) throw reason;
     }
     const data = { userId, token: found.token, targetId: id, platform: Platform.OS, ...prefs };
     try {
@@ -89,6 +100,7 @@ export async function saveDevice(userId: string, prefs: PushPrefs): Promise<{ ok
       if (codeOf(reason) !== 404) throw reason;
       await tablesDB.createRow({ databaseId, tableId: tableIds.pushDevices, rowId: id, data, permissions: ownerPermissions(userId) });
     }
+    await SecureStore.setItemAsync(registrationKey, id, secureOptions);
     return { ok: true };
   } catch (reason) {
     return { error: reason instanceof Error ? reason.message : 'Die Einstellung konnte nicht gespeichert werden.' };
@@ -96,16 +108,26 @@ export async function saveDevice(userId: string, prefs: PushPrefs): Promise<{ ok
 }
 
 /** Entfernt dieses Gerät (Ausschalten oder Abmelden), damit keine Nachrichten mehr ankommen. Fehler sind unwichtig. */
-export async function removeDevice(): Promise<void> {
+export async function removeDevice(): Promise<PushResult> {
   try {
-    if (await pushStatus() !== 'granted') return;
-    const found = await requestToken();
-    if ('error' in found) return;
-    const id = await rowIdFor(found.token);
-    await messaging.deleteSubscriber({ topicId: pushTopicId, subscriberId: id }).catch(() => undefined);
-    await account.deletePushTarget({ targetId: id }).catch(() => undefined);
-    await tablesDB.deleteRow({ databaseId, tableId: tableIds.pushDevices, rowId: id }).catch(() => undefined);
-  } catch {
-    // war nicht angemeldet oder offline
+    let id = await savedRegistrationId();
+    if (!id && await pushStatus() === 'granted') {
+      const found = await requestToken();
+      if (!('error' in found)) id = await rowIdFor(found.token);
+    }
+    if (!id) return { ok: true };
+    const registrationId = id;
+
+    for (const remove of [
+      () => messaging.deleteSubscriber({ topicId: legacyBroadcastTopic, subscriberId: registrationId }),
+      () => account.deletePushTarget({ targetId: registrationId }),
+      () => tablesDB.deleteRow({ databaseId, tableId: tableIds.pushDevices, rowId: registrationId }),
+    ]) {
+      try { await remove(); } catch (reason) { if (codeOf(reason) !== 404) throw reason; }
+    }
+    await SecureStore.deleteItemAsync(registrationKey, secureOptions);
+    return { ok: true };
+  } catch (reason) {
+    return { error: reason instanceof Error ? reason.message : 'Die Benachrichtigung konnte nicht vollständig abgemeldet werden.' };
   }
 }

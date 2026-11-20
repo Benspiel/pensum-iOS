@@ -24,7 +24,7 @@ const bridge = read("host-bridge.js");
 const safe = (source) => source.replace(/<\/script/gi, (tag) => "<\\/" + tag.slice(2));
 const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">`;
 const html = `<!doctype html><meta charset="utf-8">${csp}<meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style>
-<script>${safe(read("jszip.min.js"))}</script><script>${safe(read("jspdf.umd.min.js"))}</script><script>${safe(read("templates.js"))}</script>
+<script>${safe(read("jspdf.umd.min.js"))}</script>
 <script>${safe(engine)}\n${safe(bridge)}</script>`;
 // Zeichenfeld für die eigene Handschrift: Engine, Pad-Brücke und Caveat als Hilfsbuchstabe.
 const caveat = fonts.find(([f, w]) => f === "Caveat" && w === 400);

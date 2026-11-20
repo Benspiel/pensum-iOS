@@ -13,11 +13,9 @@ export default function RecoverScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [finished, setFinished] = useState(false);
-  const link = session.emailLink?.kind === 'recover' ? session.emailLink : null;
-  const submitting = !!link || !!userId;
+  const submitting = !!userId;
   const signedIn = session.state.status === 'account';
-  const canRecover = session.state.status === 'guest' ||
-    (session.state.status === 'account' && link?.userId === session.state.user.id);
+  const canRecover = session.state.status === 'guest';
   const goToAccount = () => {
     session.dismissEmailLink();
     router.replace('/konto');
@@ -32,8 +30,7 @@ export default function RecoverScreen() {
 
   function finish() {
     void action.run(async () => {
-      if (link) await session.finishEmailLink(link, password);
-      else if (userId) await session.finishRecovery(userId, code, password);
+      if (userId) await session.finishRecovery(userId, code, password);
       setPassword('');
       setCode('');
       setFinished(true);
@@ -55,21 +52,18 @@ export default function RecoverScreen() {
             <AppText>Dein Passwort wurde geändert.</AppText>
             <Button title="Zur Anmeldung" onPress={goToAccount} />
           </> : submitting ? <>
-            {!link ? <Field label="Sechsstelliger Code" value={code} onChangeText={setCode}
-              textContentType="oneTimeCode" inputMode="numeric" maxLength={8} /> : null}
+            <Field label="Sechsstelliger Code" value={code} onChangeText={setCode}
+              textContentType="oneTimeCode" inputMode="numeric" maxLength={8} />
             <Field label="Neues Passwort" value={password} onChangeText={setPassword} secureTextEntry
               autoCapitalize="none" autoCorrect={false} textContentType="newPassword" />
             <Button title="Passwort speichern" loading={action.busy}
-              disabled={password.length < 8 || (!link && code.replace(/\s/g, '').length !== 6)} onPress={finish} />
-            {!link ? <Button title="Code erneut senden" variant="secondary" disabled={action.busy} onPress={sendCode} /> : null}
+              disabled={password.length < 8 || code.replace(/\s/g, '').length !== 6} onPress={finish} />
+            <Button title="Code erneut senden" variant="secondary" disabled={action.busy} onPress={sendCode} />
           </> : <>
-            <AppText>Fordere einen Code oder einen Link für deine E-Mail-Adresse an.</AppText>
+            <AppText>Fordere einen Code für deine E-Mail-Adresse an.</AppText>
             <Field label="E-Mail" value={email} onChangeText={setEmail} keyboardType="email-address"
               textContentType="emailAddress" autoCorrect={false} autoCapitalize="none" />
             <Button title="Code senden" loading={action.busy} disabled={!email.trim()} onPress={sendCode} />
-            <Button title="Link anfordern" variant="secondary" disabled={!email.trim() || action.busy}
-              onPress={() => void action.run(() => session.requestRecoveryLink(email),
-                'Wenn für diese Adresse ein Konto besteht, wird ein Link per E-Mail zugestellt.')} />
           </>}
           <Notice notice={action.notice} />
           {finished ? null : <Button title="Zurück zur Anmeldung" variant="plain" disabled={action.busy} onPress={goToAccount} />}

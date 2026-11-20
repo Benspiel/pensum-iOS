@@ -20,6 +20,7 @@ import { AppText, ErrorState, LoadingState, Panel, Screen } from "../../ui";
 import { PressableScale } from "../../ui/motion";
 import { TwoColumn, useWideLayout } from "../../ui/TwoColumn";
 import { useSession } from "../../account/session";
+import { aiEnabled } from "../../backend/config";
 
 type Dialog =
   | { kind: "newDeck" }
@@ -162,7 +163,7 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
       ) : <View style={styles.body}>{body}</View>}
 
       {dialog?.kind === "newDeck" ? (
-        <DeckDialog kiTester={k.kiTester} onSubmit={actions.createDeck} onKi={(id, input) => void actions.kiGenerate(id, input)} onClose={closeDialog} />
+        <DeckDialog kiTester={aiEnabled && k.kiTester} onSubmit={actions.createDeck} onKi={(id, input) => void actions.kiGenerate(id, input)} onClose={closeDialog} />
       ) : null}
       {dialog?.kind === "editDeck" && dialogDeck ? (
         <DeckDialog deck={dialogDeck} onSubmit={(name, mode) => actions.editDeck(dialogDeck.id, name, mode)} onDelete={() => actions.deleteDeck(dialogDeck.id)} onClose={closeDialog} />

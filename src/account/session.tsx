@@ -56,7 +56,6 @@ interface SessionContextValue {
   signInWithGoogle(): Promise<void>;
   startRecovery(email: string): Promise<string>;
   finishRecovery(userId: string, secret: string, password: string): Promise<void>;
-  requestRecoveryLink(email: string): Promise<void>;
   finishEmailLink(link: EmailAuthLink, password?: string): Promise<void>;
   requestEmailVerification(): Promise<void>;
   dismissEmailLink(): void;
@@ -354,6 +353,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
     if (link.kind === 'oauth' || link.kind === 'oauth-failure') {
       if (!googleAuthEnabled) return;
       void finishOAuth(link).catch((error) => setOAuthError(asPensumError(error)));
+    } else if (link.kind === 'recover') {
+      // Passwort-Links in einem frei registrierbaren URL-Schema sind auf iOS nicht
+      // eindeutig an diese App gebunden. Der Reset verwendet deshalb nur E-Mail-OTP.
+      return;
     } else {
       setEmailLink(link);
     }
@@ -423,11 +426,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
     await account.updateRecoveryOTP({ userId, secret: requireCode(secret), password });
   }), [exclusive, requireGuest]);
 
-  const requestRecoveryLink = useCallback((email: string) => exclusive(async () => {
-    requireGuest();
-    await account.createRecovery({ email: email.trim(), url: callbackUrl('recover') });
-  }), [exclusive, requireGuest]);
-
   const finishEmailLink = useCallback((link: EmailAuthLink, password?: string) => exclusive(async () => {
     if (link.kind === 'recover') {
       if (!password || password.length < 8) throw new PensumError('invalid', 'Gib mindestens acht Zeichen ein.');
@@ -488,10 +486,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<SessionContextValue>(() => ({
     state, access, scope, emailLink, oauthError, refresh, signIn, register, resendCode, confirmCode,
-    signInWithGoogle, startRecovery, finishRecovery, requestRecoveryLink, finishEmailLink,
+    signInWithGoogle, startRecovery, finishRecovery, finishEmailLink,
     requestEmailVerification, dismissEmailLink, updatePrefs, registerBeforeLogout, logout, deleteAccount,
   }), [state, access, scope, emailLink, oauthError, refresh, signIn, register, resendCode, confirmCode,
-    signInWithGoogle, startRecovery, finishRecovery, requestRecoveryLink, finishEmailLink,
+    signInWithGoogle, startRecovery, finishRecovery, finishEmailLink,
     requestEmailVerification, dismissEmailLink, updatePrefs, registerBeforeLogout, logout, deleteAccount]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
