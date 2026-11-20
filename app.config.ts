@@ -27,7 +27,8 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-font',
     '@react-native-community/datetimepicker',
-    'expo-notifications',
+    // Push-Berechtigung (aps-environment) nur, wenn das Signaturprofil sie enthält: EXPO_PUBLIC_PUSH_ENTITLEMENT=true im EAS-Build setzen.
+    ...(process.env.EXPO_PUBLIC_PUSH_ENTITLEMENT === 'true' ? ['expo-notifications' as const] : []),
     ['expo-secure-store', { faceIDPermission: false }],
     [
       'expo-image-picker',
