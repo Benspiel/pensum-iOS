@@ -4,13 +4,13 @@ import { useRouter } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Models } from 'react-native-appwrite';
 import { executeFunction, functionIds, listAllRows, Query, tableIds } from '../../backend';
 import { useAccountGuard } from '../appwrite-tools/account-scope';
 import { radius, resolveTextStyle, spacing, usePensumTheme } from '../../theme';
-import { AppText, Button, ErrorState, Field, LoadingState, Screen, Segmented } from '../../ui';
+import { AppText, Button, ErrorState, Field, LoadingState, PensumLoadingMark, Screen, Segmented } from '../../ui';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { confirmAction, consentToGemini, errorText, useToolAction } from '../appwrite-tools/actions';
 import { pickPhoto, prepareImage, removeTemporaryFile, type ImageSource } from '../appwrite-tools/images';
@@ -297,7 +297,7 @@ export function KiChatScreen({ userId }: { userId: string }) {
                   <AppText>{pendingMessage}</AppText>
                 </View>
                 <View style={styles.typing} accessibilityLiveRegion="polite">
-                  <ActivityIndicator color={colors.ink} />
+                  <PensumLoadingMark />
                   <AppText variant="bodySm" tone="muted">Gemini antwortet …</AppText>
                 </View>
               </>

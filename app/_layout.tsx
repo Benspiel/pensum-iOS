@@ -1,32 +1,50 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, useColorScheme } from 'react-native';
+import { useCallback, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 import { SessionProvider } from '../src/account/session';
-import { PensumThemeProvider, fontFamilies, palette, usePensumTheme } from '../src/theme';
+import { PensumThemeProvider, fontFamilies, usePensumTheme } from '../src/theme';
 import { useAppFonts } from '../src/theme/fonts';
+import { StartupScreen } from '../src/ui/StartupScreen';
 
 export const unstable_settings = { initialRouteName: 'index' };
 
 export default function RootLayout() {
   const fonts = useAppFonts();
-  const system = useColorScheme();
-
-  // Erst rendern, wenn Inter geladen ist (oder fehlgeschlagen/Zeitüberschreitung: dann Systemschrift).
-  // Bis dahin eine leere Fläche in der Hintergrundfarbe des Systems statt eines weißen Aufblitzens.
-  if (!fonts.ready) {
-    return <View style={{ flex: 1, backgroundColor: system === 'dark' ? palette.dark.canvas : palette.light.canvas }} />;
-  }
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <PensumThemeProvider customFonts={fonts.loaded}>
-        <SessionProvider>
-          <Navigation />
-        </SessionProvider>
+        <AppContent ready={fonts.ready} />
       </PensumThemeProvider>
     </SafeAreaProvider>
+  );
+}
+
+function AppContent({ ready }: { ready: boolean }) {
+  const { scheme, colors } = usePensumTheme();
+  const [showStartup, setShowStartup] = useState(true);
+  const finishStartup = useCallback(() => setShowStartup(false), []);
+
+  return (
+    <View style={[styles.fill, { backgroundColor: colors.canvas }]}>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      {ready ? (
+        <View
+          aria-hidden={showStartup}
+          accessibilityElementsHidden={showStartup}
+          importantForAccessibility={showStartup ? 'no-hide-descendants' : 'auto'}
+          style={styles.fill}
+        >
+          <SessionProvider>
+            <Navigation />
+          </SessionProvider>
+        </View>
+      ) : null}
+      {showStartup ? <StartupScreen ready={ready} onFinish={finishStartup} /> : null}
+    </View>
   );
 }
 
@@ -54,7 +72,6 @@ function Navigation() {
         heavy: font('bold', '700'),
       },
     }}>
-      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{
         headerBackTitle: 'Übersicht',
         headerBackButtonDisplayMode: 'minimal',
@@ -71,3 +88,5 @@ function Navigation() {
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({ fill: { flex: 1 } });

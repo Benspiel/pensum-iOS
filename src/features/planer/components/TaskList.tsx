@@ -1,7 +1,7 @@
 /* Planer – Tab „Hausaufgaben“: Schnellerfassung, Gruppen, Zeilen, Erledigt-Bereich (Web: .pl-quick, .pl-group, .pl-row, .pl-details).
  * Dünne Komponenten, Logik in model.ts/core.ts. */
 import { useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Animated, StyleSheet, TextInput, View } from "react-native";
 import { AppText, Badge, Button, TintContext } from "../../../ui";
 import { radius, resolveTextStyle, spacing, usePensumTheme } from "../../../theme";
 import { groupTasks, type PlanItem } from "../core";
@@ -10,6 +10,7 @@ import { Disclosure } from "../../../ui/Disclosure";
 import { Empty } from "./Empty";
 import { IconButton } from "./IconButton";
 import { useReduceMotion } from "./useReduceMotion";
+import { PressableScale } from "../../../ui/motion";
 
 /** Abhaken: Zeile blendet kurz aus und gleitet weg (Web: .leaving, 280 ms), danach wird umgeschaltet. Bei „Bewegung reduzieren“ sofort. */
 const LEAVE_MS = 280;
@@ -30,7 +31,7 @@ function TaskRow({ task, today, done, reduceMotion, onToggle, onEdit, onDelete }
   return (
     <TintContext.Provider value={false}>
       <Animated.View style={[styles.row, { borderColor: colors.hairlineSoft, backgroundColor: colors.canvas, opacity: leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), transform: [{ translateX: leave.interpolate({ inputRange: [0, 1], outputRange: [0, 24] }) }] }]}>
-        <Pressable
+        <PressableScale scaleTo={0.9}
           accessibilityRole="checkbox"
           accessibilityLabel={`${done ? "Wieder öffnen" : "Als erledigt markieren"}: ${task.title}`}
           accessibilityState={{ checked: !!done }}
@@ -40,7 +41,7 @@ function TaskRow({ task, today, done, reduceMotion, onToggle, onEdit, onDelete }
           <View style={[styles.check, { borderColor: colors.ink, backgroundColor: done ? colors.ink : "transparent" }]}>
             {done ? <AppText accessible={false} style={[styles.checkMark, { color: colors.onPrimary }]}>✓</AppText> : null}
           </View>
-        </Pressable>
+        </PressableScale>
         <View style={styles.body}>
           <AppText variant="link" style={done ? { textDecorationLine: "line-through", color: colors.mutedOnCanvas } : undefined}>{task.title}</AppText>
           <View style={styles.meta}>

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Keyboard, Linking, ScrollView, StyleSheet, Switch, View, useWindowDimensions } from 'react-native';
 import { account } from '../../src/backend';
 import { googleAuthEnabled } from '../../src/backend/config';
@@ -10,16 +10,11 @@ import {
 } from '../../src/account/management';
 import { type AccountScope, type EmailCode, useSession } from '../../src/account/session';
 import { AppText, Button, Card, ErrorState, Field, LoadingState, Screen, Segmented, ThemeSelector, type SegmentedOption } from '../../src/ui';
+import { BottomSheet } from '../../src/ui/BottomSheet';
+import { ProfileCard, SettingsPanel, SettingsRow, SettingsSection } from '../../src/account/settings-ui';
 
 const guestTabs = [
   { id: 'login', label: 'Anmeldung' },
-  { id: 'app', label: 'App', accessibilityLabel: 'App und Rechtliches' },
-] as const;
-
-const accountTabs = [
-  { id: 'profile', label: 'Profil' },
-  { id: 'access', label: 'Zugang', accessibilityLabel: 'Zugang und Geräte' },
-  { id: 'data', label: 'Daten' },
   { id: 'app', label: 'App', accessibilityLabel: 'App und Rechtliches' },
 ] as const;
 
@@ -175,6 +170,17 @@ function ask(title: string, message: string, button: string, confirmed: () => vo
   ]);
 }
 
+type SettingsSheet = 'name' | 'email' | 'password' | 'devices' | 'data' | 'delete';
+const sheetTitles: Record<SettingsSheet, string> = {
+  name: 'Name',
+  email: 'E-Mail-Adresse',
+  password: 'Passwort',
+  devices: 'Angemeldete Geräte',
+  data: 'Gespeichert in deinem Konto',
+  delete: 'Konto löschen',
+};
+type Devices = Awaited<ReturnType<typeof getAccountDevices>>;
+
 function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: AccountScope; offline: boolean }) {
   const router = useRouter();
   const session = useSession();
@@ -184,17 +190,33 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [deletion, setDeletion] = useState('');
-  const [devices, setDevices] = useState<Awaited<ReturnType<typeof getAccountDevices>> | null>(null);
-  const [tab, setTab] = useState<typeof accountTabs[number]['id']>('profile');
+  const [devices, setDevices] = useState<Devices | null>(null);
+  const [sheet, setSheet] = useState<SettingsSheet | null>(null);
   const disabled = offline || action.busy;
-  function selectTab(next: typeof tab) {
-    if (next === tab || action.busy) return;
+
+  useEffect(() => {
+    if (offline) return;
+    let active = true;
+    getAccountDevices(scope).then((list) => { if (active) setDevices(list); }, () => undefined);
+    return () => { active = false; };
+  }, [scope, offline]);
+
+  function openSheet(next: SettingsSheet) {
+    action.reset();
+    setName(user.name);
+    setEmail(user.email);
+    setOldPassword('');
+    setNewPassword('');
+    setDeletion('');
+    setSheet(next);
+  }
+  function closeSheet() {
     Keyboard.dismiss();
     setOldPassword('');
     setNewPassword('');
     setDeletion('');
     action.reset();
-    setTab(next);
+    setSheet(null);
   }
   async function logout(everywhere = false) {
     try {
@@ -213,46 +235,59 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
     }
     setDevices(await getAccountDevices(scope));
   };
+  const deviceCount = devices ? (devices.length === 1 ? '1 Gerät' : `${devices.length} Geräte`) : undefined;
 
   return (
-    <Screen title="Konto" description={user.email}>
-      <AccountTabs options={accountTabs} value={tab} onChange={selectTab} busy={action.busy} />
-      {tab !== 'app' && offline && (
+    <Screen title="Konto." navigationTitle="Konto" description="Dein Konto gilt für alle Tools.">
+      <ProfileCard name={user.name} email={user.email} verified={user.emailVerified}>
+        {!user.emailVerified ? (
+          <Button title="Bestätigungslink senden" variant="soft" disabled={disabled}
+            onPress={() => void action.run(session.requestEmailVerification, 'Bestätigungslink gesendet.')} />
+        ) : null}
+      </ProfileCard>
+      {offline && (
         <ErrorState title="Offline" message="Kontoeinstellungen brauchen eine Internetverbindung."
           onRetry={() => void session.refresh()} />
       )}
-      {tab !== 'app' && <Notice notice={action.notice} />}
-      {tab === 'profile' && (
-        <>
-          <Card>
-            <AppText variant="section">{user.name || 'Mein Konto'}</AppText>
-            <AppText tone="muted">{user.emailVerified ? 'E-Mail bestätigt' : 'E-Mail noch nicht bestätigt'}</AppText>
-            {!user.emailVerified ? <Button title="Bestätigungslink senden" variant="secondary" disabled={disabled}
-              onPress={() => void action.run(session.requestEmailVerification, 'Bestätigungslink gesendet.')} /> : null}
-            <Button title="Abmelden" variant="secondary" disabled={action.busy}
-              onPress={() => void action.run(() => logout())} />
-          </Card>
-          <Card>
-            <AppText variant="section">Profil</AppText>
+      {sheet === null ? <Notice notice={action.notice} /> : null}
+      <SettingsPanel title="Einstellungen">
+        <SettingsSection title="Profil">
+          <SettingsRow label="Name" value={user.name || undefined} disabled={offline} onPress={() => openSheet('name')} />
+          <SettingsRow label="E-Mail-Adresse" value={user.email} disabled={offline} onPress={() => openSheet('email')} />
+        </SettingsSection>
+        <SettingsSection title="Sicherheit">
+          <SettingsRow label="Passwort" value="••••••••" disabled={offline} onPress={() => openSheet('password')} />
+          <SettingsRow label="Angemeldete Geräte" value={deviceCount} disabled={offline} onPress={() => openSheet('devices')} />
+        </SettingsSection>
+        <SettingsSection title="Daten">
+          <SettingsRow label="Gespeichert in deinem Konto" disabled={offline} onPress={() => openSheet('data')} />
+          <SettingsRow label="Konto löschen" value="Unwiderruflich" danger disabled={offline} onPress={() => openSheet('delete')} />
+        </SettingsSection>
+      </SettingsPanel>
+      <Button title="Abmelden" variant="secondary" disabled={action.busy}
+        onPress={() => void action.run(() => logout())} />
+      <AppSettings />
+
+      <BottomSheet visible={sheet !== null} title={sheet ? sheetTitles[sheet] : ''} busy={action.busy} onClose={closeSheet}>
+        <Notice notice={action.notice} />
+        {sheet === 'name' && (
+          <>
             <Field label="Name" value={name} onChangeText={setName} textContentType="name" maxLength={128} />
-            <Button title="Name speichern" variant="secondary" disabled={disabled || name.trim() === user.name}
+            <Button title="Name speichern" disabled={disabled || name.trim() === user.name}
               onPress={() => void action.run(async () => {
                 requireAccountScope(scope);
                 await account.updateName({ name: name.trim() || 'Pensum' });
                 await session.refresh();
               }, 'Name gespeichert.')} />
-          </Card>
-        </>
-      )}
-      {tab === 'access' && (
-        <>
-          <Card>
-            <AppText variant="section">Zugangsdaten</AppText>
+          </>
+        )}
+        {sheet === 'email' && (
+          <>
             <Field label="E-Mail-Adresse" value={email} onChangeText={setEmail} keyboardType="email-address"
               autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" />
             <Field label="Aktuelles Passwort" value={oldPassword} onChangeText={setOldPassword} secureTextEntry
               textContentType="password" autoCapitalize="none" autoCorrect={false} />
-            <Button title="E-Mail-Adresse ändern" variant="secondary"
+            <Button title="E-Mail-Adresse ändern"
               disabled={disabled || !oldPassword || !email.trim() || email.trim() === user.email}
               onPress={() => void action.run(async () => {
                 requireAccountScope(scope);
@@ -260,27 +295,32 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
                 setOldPassword('');
                 await session.refresh();
               }, 'E-Mail-Adresse geändert. Bestätige deine neue Adresse.')} />
+          </>
+        )}
+        {sheet === 'password' && (
+          <>
+            <Field label="Aktuelles Passwort" value={oldPassword} onChangeText={setOldPassword} secureTextEntry
+              textContentType="password" autoCapitalize="none" autoCorrect={false} />
             <Field label="Neues Passwort" value={newPassword} onChangeText={setNewPassword} secureTextEntry
-              textContentType="newPassword" autoCapitalize="none" autoCorrect={false} />
-            <Button title="Passwort ändern" variant="secondary" disabled={disabled || !oldPassword || newPassword.length < 8}
+              textContentType="newPassword" autoCapitalize="none" autoCorrect={false} hint="Mindestens 8 Zeichen." />
+            <Button title="Passwort ändern" disabled={disabled || !oldPassword || newPassword.length < 8}
               onPress={() => void action.run(async () => {
                 requireAccountScope(scope);
                 await account.updatePassword({ password: newPassword, oldPassword });
                 setOldPassword('');
                 setNewPassword('');
               }, 'Passwort geändert.')} />
-          </Card>
-          <Card>
-            <AppText variant="section">Geräte</AppText>
-            <Button title={devices ? 'Sitzungen aktualisieren' : 'Sitzungen anzeigen'} variant="secondary" disabled={disabled}
-              onPress={() => void action.run(async () => { setDevices(await getAccountDevices(scope)); })} />
+          </>
+        )}
+        {sheet === 'devices' && (
+          <>
             {devices?.map((device) => (
-              <Card key={device.$id}>
+              <Card key={device.$id} variant="soft">
                 <AppText>{[device.clientName, device.osName].filter(Boolean).join(' · ') || 'Unbekanntes Gerät'}
                   {device.current ? ' (dieses Gerät)' : ''}</AppText>
                 <AppText variant="caption" tone="muted">{new Date(device.$createdAt).toLocaleString('de-DE')}</AppText>
                 {device.current ? null : (
-                  <Button title="Sitzung beenden" variant="plain" disabled={disabled}
+                  <Button title="Sitzung beenden" variant="soft" disabled={disabled}
                     onPress={() => void action.run(async () => {
                       requireAccountScope(scope);
                       await account.deleteSession({ sessionId: device.$id });
@@ -289,6 +329,10 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
                 )}
               </Card>
             ))}
+            {devices === null ? (
+              <Button title="Sitzungen anzeigen" variant="secondary" disabled={disabled}
+                onPress={() => void action.run(async () => { setDevices(await getAccountDevices(scope)); })} />
+            ) : null}
             {devices?.some((device) => !device.current) ? (
               <Button title="Andere Geräte abmelden" variant="secondary" disabled={disabled}
                 onPress={() => void action.run(endOtherDevices, 'Andere Geräte abgemeldet.')} />
@@ -296,21 +340,20 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
             <Button title="Überall abmelden" variant="secondary" disabled={disabled}
               onPress={() => ask('Überall abmelden?', 'Alle aktiven Sitzungen dieses Kontos werden beendet.', 'Überall abmelden',
                 () => void action.run(() => logout(true)))} />
-          </Card>
-        </>
-      )}
-      {tab === 'data' && (
-        <>
-          <Card>
-            <AppText variant="section">Daten</AppText>
+          </>
+        )}
+        {sheet === 'data' && (
+          <>
+            <AppText tone="muted">Fächer, Noten, Mindmaps, Karten, Planereinträge und dein Handschrift-Profil liegen in deinem Konto.</AppText>
             <Button title="Kontodaten als JSON teilen" variant="secondary" disabled={disabled}
               onPress={() => void action.run(() => shareAccountExport(scope, user))} />
             <Button title="Lerninhalte im Konto löschen" variant="danger" disabled={disabled}
               onPress={() => ask('Lerninhalte löschen?', 'Deine Fächer, Noten, Mindmaps, Karten, Planereinträge und dein Handschrift-Profil werden gelöscht.', 'Inhalte löschen',
                 () => void action.run(() => clearAccountContents(scope), 'Lerninhalte gelöscht.'))} />
-          </Card>
-          <Card>
-            <AppText variant="section">Konto löschen</AppText>
+          </>
+        )}
+        {sheet === 'delete' && (
+          <>
             <AppText tone="muted">Dein Konto und die zugehörigen Daten werden dauerhaft gelöscht.</AppText>
             <Field label="Zur Bestätigung LÖSCHEN eingeben" value={deletion} onChangeText={setDeletion}
               autoCapitalize="characters" maxLength={12} />
@@ -322,10 +365,9 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
                   await session.deleteAccount();
                   router.replace('/');
                 }))} />
-          </Card>
-        </>
-      )}
-      {tab === 'app' && <AppSettings />}
+          </>
+        )}
+      </BottomSheet>
     </Screen>
   );
 }

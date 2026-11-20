@@ -18,6 +18,8 @@ Alle Dateien liegen im Repository und werden mit der App ausgeliefert (kein CDN,
 | `fonts/gochi-hand-*.woff2` | Gochi Hand, Huerta Tipográfica | SIL OFL 1.1 (`fonts/gochi-hand-LICENSE.txt`) |
 | `host-bridge.js` | neu, Pensum iOS | wie das App-Projekt |
 
+Die sechs TTF-Originale in `fonts/` zeigen die Schriftmuster in der nativen Stilauswahl. Für sie gelten die oben genannten Lizenzdateien. [Caveat](https://github.com/googlefonts/caveat/tree/59745e818ef7973e11e70cb1358d0e902b56c5fc/fonts/ttf) · [Google Fonts](https://github.com/google/fonts/tree/main/ofl)
+
 `src/features/goodnotes/host-html.generated.ts` wird aus diesen Dateien mit `node scripts/build-goodnotes-host.mjs` erzeugt.
 
 ## Spiele

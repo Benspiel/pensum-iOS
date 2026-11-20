@@ -1,8 +1,9 @@
 /* Planer – runder Symbol-Knopf, 44 pt (Web: .icon-btn mit Stift / Papierkorb / Schließen-Kreuz). */
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
-import { Pressable, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { AppText } from "../../../ui";
 import { usePensumTheme } from "../../../theme";
+import { PressableScale } from "../../../ui/motion";
 
 export function IconButton({ symbol, fallback, label, hint, onPress }: {
   symbol: SymbolViewProps["name"];
@@ -14,7 +15,7 @@ export function IconButton({ symbol, fallback, label, hint, onPress }: {
 }) {
   const { colors } = usePensumTheme();
   return (
-    <Pressable
+    <PressableScale scaleTo={0.9}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={hint}
@@ -22,7 +23,7 @@ export function IconButton({ symbol, fallback, label, hint, onPress }: {
       style={({ pressed }) => [styles.button, { backgroundColor: pressed ? colors.surface : "transparent" }]}
     >
       <SymbolView name={symbol} size={20} tintColor={colors.muted} fallback={<AppText variant="body" tone="muted" accessible={false}>{fallback}</AppText>} />
-    </Pressable>
+    </PressableScale>
   );
 }
 

@@ -2,11 +2,12 @@
  * Auf iOS ein Blatt mit Auswahlliste. */
 import { SymbolView } from "expo-symbols";
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Modal, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppText, Button } from "../../../ui";
 import { radius, spacing, usePensumTheme } from "../../../theme";
 import { SHEET_MAX_WIDTH, sheetPresentation } from "../model";
+import { PressableScale } from "../../../ui/motion";
 
 export function YearPicker({ value, options, onChange }: { value: string; options: readonly string[]; onChange: (year: string) => void }) {
   const { colors } = usePensumTheme();
@@ -14,7 +15,7 @@ export function YearPicker({ value, options, onChange }: { value: string; option
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Pressable
+      <PressableScale scaleTo={0.99}
         accessibilityRole="button"
         accessibilityLabel={`Schuljahr ${value}`}
         accessibilityHint="Öffnet die Auswahl des Schuljahrs"
@@ -25,7 +26,7 @@ export function YearPicker({ value, options, onChange }: { value: string; option
         <View accessible={false} importantForAccessibility="no-hide-descendants">
           <SymbolView name="chevron.down" size={16} tintColor={colors.ink} fallback={<AppText variant="bodySm">▾</AppText>} />
         </View>
-      </Pressable>
+      </PressableScale>
       <Modal visible={open} animationType="slide" presentationStyle={sheetPresentation(width)} onRequestClose={() => setOpen(false)}>
         <SafeAreaView style={[styles.sheet, { backgroundColor: colors.canvas }]}>
           <View style={styles.head}>
@@ -36,7 +37,7 @@ export function YearPicker({ value, options, onChange }: { value: string; option
             {options.map((y) => {
               const active = y === value;
               return (
-                <Pressable
+                <PressableScale scaleTo={0.99}
                   key={y}
                   accessibilityRole="radio"
                   accessibilityLabel={`Schuljahr ${y}`}
@@ -46,7 +47,7 @@ export function YearPicker({ value, options, onChange }: { value: string; option
                 >
                   <AppText variant="link" style={{ color: active ? colors.onPrimary : colors.ink }}>{`Schuljahr ${y}`}</AppText>
                   {active ? <AppText accessibilityElementsHidden importantForAccessibility="no" style={{ color: colors.onPrimary }}>✓</AppText> : null}
-                </Pressable>
+                </PressableScale>
               );
             })}
           </ScrollView>

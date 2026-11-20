@@ -64,10 +64,10 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
   }
 
   let body;
-  if (state.status === "loading") body = <LoadingPanel title="Deine Karten werden geladen" reduceMotion={k.reduceMotion} />;
+  if (state.status === "loading") body = <LoadingPanel title="Deine Karten werden geladen" />;
   else if (state.status === "error") body = <ErrorState message={state.error.message} />;
   else if (k.loadError) body = <ErrorState title="Laden fehlgeschlagen." message={k.loadError} onRetry={actions.retryLoad} />;
-  else if (view.name === "boot") body = <LoadingPanel title="Deine Karten werden geladen" reduceMotion={k.reduceMotion} />;
+  else if (view.name === "boot") body = <LoadingPanel title="Deine Karten werden geladen" />;
   else if (view.name === "list" || (view.name === "deck" && inSplit)) {
     const deckList = (
       <DeckList
@@ -93,7 +93,7 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
       body = <TwoColumn split primary={deckList} secondary={detail} primaryWeight={2} secondaryWeight={3} />;
     }
   } else if (view.name === "loading") {
-    body = <LoadingRound deck={k.deckById(view.round.deckId)} round={view.round} count={view.count} reduceMotion={k.reduceMotion} />;
+    body = <LoadingRound deck={k.deckById(view.round.deckId)} round={view.round} count={view.count} />;
   } else {
     const deck = viewDeckId ? k.deckById(viewDeckId) : undefined;
     if (!deck) body = <LoadingState />;

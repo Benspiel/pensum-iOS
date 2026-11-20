@@ -13,10 +13,10 @@ import { radius, spacing, usePensumTheme } from "../../../theme";
 import { AppText, Badge, Button, Field, Panel } from "../../../ui";
 import { IconButton, LevelBoxes, LoadingPanel, SYMBOLS, TitleBar } from "./common";
 
-export function LoadingRound({ deck, round, count, reduceMotion = false }: { deck: Deck | undefined; round: Round; count: number; reduceMotion?: boolean }) {
+export function LoadingRound({ deck, round, count }: { deck: Deck | undefined; round: Round; count: number }) {
   return (
     <View style={styles.centered}>
-      <LoadingPanel title={loadingTitle(round.type)} subtitle={loadingSubtitle(deck ? deck.name : "", count)} reduceMotion={reduceMotion} />
+      <LoadingPanel title={loadingTitle(round.type)} subtitle={loadingSubtitle(deck ? deck.name : "", count)} />
     </View>
   );
 }

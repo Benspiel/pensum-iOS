@@ -2,8 +2,8 @@
  * Web-Quelle: karteikarten.js (noteHtml, levelBar, boxes, openDialog, kk-bar, kk-loading) und karteikarten.css (Web-Commit 770dbe4).
  * Optik: Bausteine aus src/ui, Farben/Abstände aus dem Theme. Abstände Web → App: s-xs 8 = sm, s-sm 12 = md, s-md 16 = lg, s-lg 24 = xl. */
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
-import { useContext, useEffect, useRef, type ReactNode } from "react";
-import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import { useContext, type ReactNode } from "react";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LEVELS, levelCounts } from "../core";
 import type { Deck } from "../core";
@@ -11,7 +11,7 @@ import { DIALOG_MAX_WIDTH, isTabletWindow } from "../layout";
 import { saveNote } from "../session-model";
 import type { SaveStatus } from "../session-model";
 import { WIDE_BREAKPOINT, radius, spacing, usePensumTheme } from "../../../theme";
-import { AppText, Button, Panel, TintContext } from "../../../ui";
+import { AppText, Button, Panel, PensumLoadingMark, TintContext } from "../../../ui";
 
 /** Ab ≥ 640 Breite gelten im Web die größeren Schriften und Zweispalter. */
 export function useWide() {
@@ -204,34 +204,10 @@ export function EmptyCard({ title, message, actionLabel, onAction, compact = fal
 
 /* ---------- Ladezustand (Web: .kk-loading – gemischte Karten, Titel, Zeile) ---------- */
 
-function Shuffle({ reduceMotion }: { reduceMotion: boolean }) {
-  const { colors } = usePensumTheme();
-  const t = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (reduceMotion) return undefined;
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(t, { toValue: 1, duration: 550, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(t, { toValue: 0, duration: 550, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-    ]));
-    loop.start();
-    return () => loop.stop();
-  }, [t, reduceMotion]);
-  const float = (offset: number, rotate: string) => ({
-    transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [offset, offset - 18] }) }, { rotate }],
-  });
-  return (
-    <View style={styles.shuffle} accessible={false} importantForAccessibility="no-hide-descendants">
-      <Animated.View style={[styles.shuffleCard, { backgroundColor: colors.canvas, borderColor: colors.ink, opacity: 0.5 }, float(0, "-8deg")]} />
-      <Animated.View style={[styles.shuffleCard, { backgroundColor: colors.canvas, borderColor: colors.ink, opacity: 0.75 }, float(2, "6deg")]} />
-      <Animated.View style={[styles.shuffleCard, { backgroundColor: colors.ink, borderColor: colors.ink }, float(4, "-3deg")]} />
-    </View>
-  );
-}
-
-export function LoadingPanel({ title, subtitle, reduceMotion = false }: { title: string; subtitle?: string; reduceMotion?: boolean }) {
+export function LoadingPanel({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <Panel accessible accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title} accessibilityRole="progressbar" accessibilityState={{ busy: true }} style={styles.loading}>
-      <Shuffle reduceMotion={reduceMotion} />
+      <PensumLoadingMark size={72} />
       <AppText variant="h3" style={styles.center}>{title}</AppText>
       {subtitle ? <AppText variant="bodySm" tone="muted" style={styles.center}>{subtitle}</AppText> : null}
     </Panel>
@@ -282,6 +258,4 @@ const styles = StyleSheet.create({
   artCard: { position: "absolute", width: 84, height: 60, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center", gap: 6 },
   artLine: { height: 4, borderRadius: 2 },
   loading: { alignItems: "center", justifyContent: "center", gap: spacing.md, paddingVertical: spacing.xxxl, minHeight: 320 },
-  shuffle: { width: 120, height: 150, marginBottom: spacing.lg, alignItems: "center", justifyContent: "center" },
-  shuffleCard: { position: "absolute", width: 120, height: 150, borderRadius: 20, borderWidth: 2 },
 });

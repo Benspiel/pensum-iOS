@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ComponentProps, type ReactNode } from 'react';
+import { useEffect, useRef, type ComponentProps } from 'react';
 import { AccessibilityInfo, Animated, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -83,17 +83,15 @@ export function ExportBar({ onPress, disabled, actions, document }: {
   );
 }
 
-export function ExportMenu({ visible, onClose, rows, busy, error, children }: {
+export function ExportMenu({ visible, onClose, rows, busy, error }: {
   visible: boolean;
   onClose: () => void;
   rows: ExportRow[];
   busy?: boolean;
   error?: string;
-  children?: ReactNode;
 }) {
   return (
     <BottomSheet visible={visible} title="Exportieren" onClose={onClose} busy={busy}>
-      {children}
       {error ? <FormMessage text={error} /> : null}
       <ExportList rows={rows} />
     </BottomSheet>

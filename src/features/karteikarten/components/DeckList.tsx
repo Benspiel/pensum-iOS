@@ -1,5 +1,5 @@
 /* Karteikarten – Stapelliste. Web-Quelle: karteikarten.js renderList/deckRow, karteikarten.css (.kk-hero, .kk-deck, .kk-go) (Web-Commit 770dbe4). */
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { MAX_DECKS, dueCount, isLevelMode } from "../core";
 import type { Deck } from "../core";
 import { deckMeta, goLabel, listStats } from "../session-model";
@@ -8,6 +8,7 @@ import type { KarteikartenData } from "../store";
 import { radius, spacing, squircleRadius, usePensumTheme } from "../../../theme";
 import { AppText, Button, Card, Panel } from "../../../ui";
 import { EmptyCard, LevelBar, SaveNote, StatTile, useWide } from "./common";
+import { PressableScale } from "../../../ui/motion";
 
 interface Props {
   data: KarteikartenData;
@@ -71,7 +72,7 @@ function DeckRow({ deck, onOpen, onQuickStart, compact, selected }: { deck: Deck
   const empty = !deck.cards.length;
   return (
     <Card style={[styles.deck, selected && { backgroundColor: colors.surface, borderColor: colors.ink }]}>
-      <Pressable accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${deck.name}, ${deckMeta(deck)}`} onPress={() => onOpen(deck.id)} style={styles.deckOpen}>
+      <PressableScale scaleTo={0.99} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${deck.name}, ${deckMeta(deck)}`} onPress={() => onOpen(deck.id)} style={styles.deckOpen}>
         <View style={[styles.squircle, compact && styles.squircleCompact, { backgroundColor: colors.ink }]}>
           <AppText variant="h3" style={[styles.initial, { color: colors.onPrimary }]}>{(deck.name[0] ?? "?").toUpperCase()}</AppText>
         </View>
@@ -80,8 +81,8 @@ function DeckRow({ deck, onOpen, onQuickStart, compact, selected }: { deck: Deck
           <AppText variant="bodySm" tone="muted" style={styles.deckMeta}>{deckMeta(deck)}</AppText>
           {isLevelMode(deck) ? <LevelBar deck={deck} /> : null}
         </View>
-      </Pressable>
-      <Pressable
+      </PressableScale>
+      <PressableScale scaleTo={0.99}
         accessibilityRole="button"
         accessibilityLabel={`${deck.name} lernen, ${dueCount(deck)} Karten`}
         disabled={empty}
@@ -91,7 +92,7 @@ function DeckRow({ deck, onOpen, onQuickStart, compact, selected }: { deck: Deck
         {({ pressed }) => (
           <AppText variant="h4" style={[styles.goText, { color: pressed ? colors.onPrimary : colors.ink }]}>{label ?? "→"}</AppText>
         )}
-      </Pressable>
+      </PressableScale>
     </Card>
   );
 }

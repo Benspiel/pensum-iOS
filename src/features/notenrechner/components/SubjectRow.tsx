@@ -3,10 +3,11 @@
  * dann gilt `initialValue` wieder. Die Zeile steht in einer Karte (Innenabstand 8/16), die der Bildschirm liefert. */
 import { SymbolView } from "expo-symbols";
 import { useState } from "react";
-import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
 import { AppText } from "../../../ui";
 import { radius, resolveTextStyle, spacing, usePensumTheme } from "../../../theme";
 import type { Subject } from "../core";
+import { PressableScale } from "../../../ui/motion";
 
 export function SubjectRow({ subject, initialValue, unit, error, divider, onRename, onGradeText, onRemove, onEditing }: {
   subject: Subject;
@@ -75,7 +76,7 @@ export function SubjectRow({ subject, initialValue, unit, error, divider, onRena
           />
           {gradeFocus || error ? <View pointerEvents="none" style={[styles.ring, styles.gradeRing, ring, { borderStyle: error ? "dashed" : "solid" }]} /> : null}
         </View>
-        <Pressable
+        <PressableScale scaleTo={0.9}
           accessibilityRole="button"
           accessibilityLabel={`Fach ${subject.name} löschen`}
           accessibilityHint="Destruktive Aktion"
@@ -83,7 +84,7 @@ export function SubjectRow({ subject, initialValue, unit, error, divider, onRena
           style={({ pressed }) => [styles.remove, { backgroundColor: pressed ? colors.surface : "transparent" }]}
         >
           <SymbolView name="trash" size={20} tintColor={colors.muted} fallback={<AppText variant="bodySm" tone="muted">✕</AppText>} />
-        </Pressable>
+        </PressableScale>
       </View>
       {error ? (
         <View style={styles.errorRow}>

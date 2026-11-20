@@ -31,9 +31,9 @@
  */
 import { Stack } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { createContext, useContext, useState, type ComponentPropsWithRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ComponentPropsWithRef, type ReactNode } from 'react';
 import {
-  ActivityIndicator,
+  Animated,
   Platform,
   Pressable,
   ScrollView,
@@ -42,6 +42,7 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  type LayoutChangeEvent,
   type PressableProps,
   type StyleProp,
   type TextProps,
@@ -64,7 +65,11 @@ import {
   type TextVariant,
   type ThemeChoice,
 } from '../theme';
+import { PensumLoadingMark } from './PensumLoadingMark';
+import { DURATION, EASE, PressableScale, Reveal, useReduceMotion } from './motion';
 import { contentMaxWidth } from './wide';
+
+export { PensumLoadingMark } from './PensumLoadingMark';
 
 /* ---------- Text ---------- */
 
@@ -118,7 +123,7 @@ export function Screen({ children, title, description, navigationTitle, scroll =
   const { width } = useWindowDimensions();
   const headerTitle = navigationTitle ?? title;
   const contents = (
-    <View style={[styles.contents, { paddingHorizontal: gutter(width), maxWidth: contentMaxWidth(width, wide) }, !scroll && styles.page, contentStyle]}>
+    <Reveal distance={10} style={[styles.contents, { paddingHorizontal: gutter(width), maxWidth: contentMaxWidth(width, wide) }, !scroll && styles.page, contentStyle]}>
       {title || description ? (
         <View style={styles.intro}>
           {title ? <AppText variant="h1" accessibilityRole="header">{title}</AppText> : null}
@@ -126,7 +131,7 @@ export function Screen({ children, title, description, navigationTitle, scroll =
         </View>
       ) : null}
       {children}
-    </View>
+    </Reveal>
   );
 
   return (
@@ -176,7 +181,8 @@ export function Button({
   }[variant];
 
   return (
-    <Pressable
+    <PressableScale
+      scaleTo={variant === 'plain' ? 1 : 0.97}
       accessibilityRole="button"
       accessibilityLabel={title}
       accessibilityHint={variant === 'danger' ? 'Destruktive Aktion' : undefined}
@@ -191,11 +197,10 @@ export function Button({
           borderColor: palette.border,
           opacity: disabled ? 0.5 : pressed && variant === 'plain' ? 0.6 : pressed && variant === 'accent' ? 0.82 : 1,
         },
-        pressed && variant !== 'plain' && styles.buttonPressed,
         style,
       ]}
     >
-      {loading ? <ActivityIndicator color={palette.fg} accessible={false} /> : symbol ? (
+      {loading ? <PensumLoadingMark size={size === 'sm' ? 16 : 20} /> : symbol ? (
         <SymbolView name={symbol} size={size === 'sm' ? 16 : 19} tintColor={palette.fg} accessible={false} />
       ) : null}
       <AppText
@@ -209,7 +214,7 @@ export function Button({
       >
         {title}
       </AppText>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -334,7 +339,8 @@ export function Chip({ label, selected = false, onPress, disabled = false, acces
     return <View style={[styles.chip, { backgroundColor: selected ? colors.ink : restingBackground }, style]}>{content}</View>;
   }
   return (
-    <Pressable
+    <PressableScale
+      scaleTo={0.96}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ selected, disabled }}
@@ -349,7 +355,7 @@ export function Chip({ label, selected = false, onPress, disabled = false, acces
       ]}
     >
       {content}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -372,18 +378,56 @@ export function Segmented<T extends string>({ options, value, onChange, label, r
   style?: StyleProp<ViewStyle>;
 }) {
   const { colors } = usePensumTheme();
+  const reduce = useReduceMotion();
   const optionRole = role === 'tablist' ? 'tab' : 'radio';
+  // Der Griff gleitet zur gewählten Option (wie ein iOS-Segmentschalter); gemessen wird jede Option einzeln.
+  const frames = useRef<Record<string, { x: number; width: number }>>({});
+  const left = useRef(new Animated.Value(0)).current;
+  const width = useRef(new Animated.Value(0)).current;
+  const placed = useRef(false);
+  const [visible, setVisible] = useState(false);
+
+  const moveTo = (id: string, animate: boolean) => {
+    const frame = frames.current[id];
+    if (!frame) return;
+    if (!animate || reduce) {
+      left.setValue(frame.x);
+      width.setValue(frame.width);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(left, { toValue: frame.x, duration: DURATION.change, easing: EASE, useNativeDriver: false }),
+      Animated.timing(width, { toValue: frame.width, duration: DURATION.change, easing: EASE, useNativeDriver: false }),
+    ]).start();
+  };
+  useEffect(() => {
+    if (placed.current) moveTo(value, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  const measure = (id: string) => (event: LayoutChangeEvent) => {
+    const { x, width: w } = event.nativeEvent.layout;
+    frames.current[id] = { x, width: w };
+    if (id === value) {
+      moveTo(id, placed.current);
+      placed.current = true;
+      setVisible(true);
+    }
+  };
+
   return (
     <View
       accessibilityRole={role}
       accessibilityLabel={label}
       style={[styles.segmented, { backgroundColor: colors.surface }, fill ? styles.segmentedFill : styles.segmentedFit, style]}
     >
+      <Animated.View pointerEvents="none" style={[styles.segmentThumb, { backgroundColor: colors.canvas, left, width, opacity: visible ? 1 : 0 }]} />
       {options.map((option) => {
         const active = option.id === value;
         return (
-          <Pressable
+          <PressableScale
             key={option.id}
+            scaleTo={0.97}
+            onLayout={measure(option.id)}
             accessibilityRole={optionRole}
             accessibilityLabel={option.accessibilityLabel ?? option.label}
             accessibilityState={role === 'tablist' ? { selected: active, disabled: option.disabled } : { checked: active, disabled: option.disabled }}
@@ -392,13 +436,13 @@ export function Segmented<T extends string>({ options, value, onChange, label, r
             style={[
               styles.segment,
               fill ? styles.segmentFill : styles.segmentFit,
-              { backgroundColor: active ? colors.canvas : 'transparent', opacity: option.disabled ? 0.5 : 1 },
+              { opacity: option.disabled ? 0.5 : 1 },
             ]}
           >
             <AppText variant="bodySm" numberOfLines={1} style={{ fontWeight: '600', color: active ? colors.ink : colors.muted }}>
               {option.label}
             </AppText>
-          </Pressable>
+          </PressableScale>
         );
       })}
     </View>
@@ -436,11 +480,10 @@ export function SquircleIcon({ symbol, size = 56, tone = 'ink', dimmed = false, 
 /* ---------- Zustände ---------- */
 
 export function LoadingState({ title = 'Wird geladen …' }: { title?: string }) {
-  const { colors } = usePensumTheme();
   return (
     <Card accessible accessibilityLabel={title} accessibilityRole="progressbar" accessibilityState={{ busy: true }}>
       <View style={styles.row}>
-        <ActivityIndicator color={colors.ink} accessible={false} />
+        <PensumLoadingMark size={28} />
         <AppText tone="muted">{title}</AppText>
       </View>
     </Card>
@@ -518,7 +561,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  buttonPressed: { transform: [{ scale: 0.97 }] },
   buttonText: { textAlign: 'center', flexShrink: 1 },
   underline: { textDecorationLine: 'underline' },
   fieldGroup: { gap: spacing.sm },
@@ -561,6 +603,7 @@ const styles = StyleSheet.create({
   segmented: { padding: spacing.xs, borderRadius: radius.pill, borderCurve: 'continuous', flexDirection: 'row', gap: 0, maxWidth: '100%' },
   segmentedFill: { width: '100%' },
   segmentedFit: { alignSelf: 'flex-start' },
+  segmentThumb: { position: 'absolute', top: spacing.xs, bottom: spacing.xs, borderRadius: radius.pill, borderCurve: 'continuous' },
   segment: { minHeight: 40, borderRadius: radius.pill, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
   segmentFill: { flex: 1, paddingHorizontal: spacing.sm },
   segmentFit: { paddingHorizontal: spacing.lg },

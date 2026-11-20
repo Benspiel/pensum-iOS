@@ -1,22 +1,25 @@
 import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
+import { useFonts } from "expo-font";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import * as Sharing from "expo-sharing";
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
-import { Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View, useWindowDimensions } from "react-native";
-import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from "react";
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, TextInput, View, useWindowDimensions } from "react-native";
+import { WebView, type WebViewMessageEvent } from "./engine-view";
 
 import { gutter, radius, resolveTextStyle, spacing, usePensumTheme } from "../../theme";
-import { AppText, Badge, Button, Screen } from "../../ui";
+import { AppText, Badge, Button, Panel, Screen } from "../../ui";
 import { Disclosure } from "../../ui/Disclosure";
+import { PressableScale } from "../../ui/motion";
 import { useWideLayout } from "../../ui/TwoColumn";
 import { takeHandoff } from "../shared/handoff";
 import { ExportBar, ExportMenu } from "./ExportMenu";
+import { fontSampleSources, fontSamples } from "./font-samples";
 import { HandPad } from "./HandPad";
 import { optionColumns, previewColumns } from "./layout";
 import { handInfo } from "./hand-store";
 import { GOODNOTES_HOST_HTML } from "./host-html.generated";
-import { FormMessage, Grid, InkDot, Notice, OptionTile, PaperSwatch, StepperRow } from "./parts";
+import { FormMessage, Grid, InkDot, Notice, OptionTile, PagePlaceholder, PaperSwatch, PreviewPage, StepperRow } from "./parts";
 import { useHand } from "./useHand";
 import { deleteQuietly, ENGINE_GIVEUP_MESSAGE } from "./request-queue";
 import { useWebViewChannel } from "./useWebViewChannel";
@@ -44,6 +47,7 @@ export default function GoodnotesScreen() {
   const { width, height, fontScale } = useWindowDimensions();
   const { inner } = useWideLayout();
   const headerHeight = useHeaderHeight();
+  const [sampleFontsLoaded] = useFonts(fontSampleSources);
   const [epoch, setEpoch] = useState(0);
   const [text, setText] = useState(SAMPLE);
   const [fileName, setFileName] = useState("Lernzettel");
@@ -175,7 +179,7 @@ export default function GoodnotesScreen() {
   const compactPageHeight = Math.round(Math.max(128, Math.min(224, height * 0.28)));
   const textHeight = Math.round(Math.max(224, Math.min(300, height * 0.3)) * Math.max(1, fontScale));
   const exportBlocked = !ready || !!busy || !hasText;
-  const paper = template ? "Eigene Vorlage" : PAPERS.find((entry) => entry.id === settings.paper)?.label;
+  const paper = template ? "Eigene Vorlage" : (PAPERS.find((entry) => entry.id === settings.paper)?.label ?? "Liniert");
   const exportSummary = `Vorlage: ${paper} · ${settings.mode === "ink" ? "echte Tinte" : "PDF-Seite"}`;
   function openExport() {
     Keyboard.dismiss();
@@ -213,6 +217,7 @@ export default function GoodnotesScreen() {
       <AppText variant="caption" tone="muted"># macht eine Überschrift, - eine Aufzählung. Dein Text bleibt auf diesem Gerät.</AppText>
     </View>
   );
+  const pageStyle = [styles.page, !split && { width: compactPageHeight * A4_ASPECT }];
   const preview = (
     <View style={[styles.preview, columns && { width: columns.preview }]}>
       <View style={styles.previewHead}>
@@ -222,20 +227,15 @@ export default function GoodnotesScreen() {
       </View>
       <ScrollView
         horizontal={!split}
-        style={[styles.stageScroll, { backgroundColor: colors.surface }, split ? styles.fill : { height: compactPageHeight + 2 * spacing.md }]}
+        style={[styles.stageScroll, { backgroundColor: colors.surface }, split ? styles.fill : { flexGrow: 0, height: compactPageHeight + 2 * spacing.md }]}
         contentContainerStyle={[styles.stage, split ? styles.wideStage : styles.horizontalStage, !split && pages.length <= 1 && styles.centerPage]}
-        showsHorizontalScrollIndicator={pages.length > 1}
+        showsHorizontalScrollIndicator={false}
+        showsVerticalScrollIndicator={false}
         accessibilityLabel="Vorschau der Seiten"
       >
-        {pages.map((uri, i) => (
-          <Image
-            key={i}
-            source={{ uri }}
-            resizeMode="contain"
-            accessibilityLabel={`Seite ${i + 1} von ${pages.length}`}
-            style={[styles.page, !split && { width: compactPageHeight * A4_ASPECT }]}
-          />
-        ))}
+        {pages.length
+          ? pages.map((uri, i) => <PreviewPage key={i} uri={uri} label={`Seite ${i + 1} von ${pages.length}`} style={pageStyle} />)
+          : <PagePlaceholder style={[pageStyle, { backgroundColor: colors.canvas }]} />}
       </ScrollView>
     </View>
   );
@@ -253,7 +253,11 @@ export default function GoodnotesScreen() {
         <AppText variant="fieldLabel">Handschrift</AppText>
         <View accessibilityRole="radiogroup" accessibilityLabel="Handschrift" style={styles.group}>
           <Grid columns={columnsFonts}>
-            {FONTS.map((f) => <OptionTile key={f} center title={f} selected={settings.font === f} onPress={() => patch({ font: f })} />)}
+            {FONTS.map((font) => (
+              <OptionTile key={font} center title={fontSamples[font].label} label={font}
+                titleStyle={sampleFontsLoaded ? [styles.fontSample, { fontFamily: font }] : undefined}
+                selected={settings.font === font} onPress={() => patch({ font })} />
+            ))}
           </Grid>
           {hand.count ? (
             <OptionTile title="Meine Handschrift" hint={handInfo(hand.count, 85, hand.cloud)} selected={settings.font === HAND_FONT} onPress={() => patch({ font: HAND_FONT, handVary: settings.handVary || 0 })} />
@@ -309,7 +313,8 @@ export default function GoodnotesScreen() {
   const templatePanel = (
     <View style={[styles.template, { borderTopColor: colors.border }]}>
       <AppText variant="fieldLabel">Eigene Vorlage</AppText>
-      <Pressable
+      <PressableScale
+        scaleTo={0.99}
         accessibilityRole="button"
         accessibilityLabel={template ? "Andere Vorlage wählen" : "Vorlage wählen"}
         accessibilityState={{ disabled: !ready }}
@@ -320,7 +325,7 @@ export default function GoodnotesScreen() {
         {template ? <Badge label="Gespeichert" /> : null}
         <AppText variant="fieldLabel" accessible={false}>{template ? "Andere Vorlage wählen" : "Vorlage wählen"}</AppText>
         <AppText variant="bodySm" tone="muted" accessible={false}>{template ? `Geladen: ${template}` : "Nur nötig, wenn du ein anderes Format brauchst. Wähle eine einseitige .goodnotes-Datei."}</AppText>
-      </Pressable>
+      </PressableScale>
       {template ? <Button title="Entfernen" accessibilityLabel="Eigene Vorlage entfernen" variant="plain" size="sm" onPress={dropTemplate} style={styles.removeTemplate} /> : null}
     </View>
   );
@@ -356,18 +361,26 @@ export default function GoodnotesScreen() {
             ref={settingsScroll}
             style={styles.settingsScroll}
             contentContainerStyle={styles.settings}
+            showsVerticalScrollIndicator={false}
             onLayout={revealFocusedEditor}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           >
             {!split ? preview : null}
             <View onLayout={({ nativeEvent: { layout } }) => { editorTop.current = layout.y; }}>
-              <Disclosure title="Dein Text." large defaultOpen>{editor}</Disclosure>
+              {split ? <SectionPanel title="Dein Text.">{editor}</SectionPanel> : <Disclosure title="Dein Text." large defaultOpen>{editor}</Disclosure>}
             </View>
-            <Disclosure title="Stil." large>
-              {stylePanel}
-              {templatePanel}
-            </Disclosure>
+            {split ? (
+              <SectionPanel title="Stil.">
+                {stylePanel}
+                {templatePanel}
+              </SectionPanel>
+            ) : (
+              <Disclosure title="Stil." large>
+                {stylePanel}
+                {templatePanel}
+              </Disclosure>
+            )}
           </ScrollView>
         </View>
       </Screen>
@@ -383,6 +396,16 @@ export default function GoodnotesScreen() {
       />
       <HandPad visible={hand.padOpen} packed={hand.packed} ink={settings.ink} cloud={hand.cloud} onSave={hand.save} onDelete={hand.count ? hand.remove : undefined} onClose={() => hand.setPadOpen(false)} />
     </KeyboardAvoidingView>
+  );
+}
+
+/** Abschnitt wie die Karten der Website: getönte Fläche, Überschrift, Inhalt – dauerhaft offen. */
+function SectionPanel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Panel style={styles.section}>
+      <AppText variant="section" accessibilityRole="header">{title}</AppText>
+      {children}
+    </Panel>
   );
 }
 
@@ -403,11 +426,14 @@ const styles = StyleSheet.create({
   wideStage: { padding: spacing.lg },
   horizontalStage: { flexGrow: 1 },
   centerPage: { justifyContent: "center" },
-  stageScroll: { flexGrow: 0, borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden" },
+  // Kein flexGrow hier: ein gesetztes flexGrow: 0 schlägt `flex: 1` (Yoga und RN Web) und ließ die Vorschau im Zweispalter auf Höhe 0 zusammenfallen.
+  stageScroll: { borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden" },
   settingsScroll: { flex: 1, minWidth: 0 },
   settings: { gap: spacing.lg, paddingBottom: spacing.md },
-  page: { width: "100%", aspectRatio: A4_ASPECT, borderRadius: radius.field, backgroundColor: "#fff" },
+  page: { width: "100%", aspectRatio: A4_ASPECT, borderRadius: spacing.sm, borderCurve: "continuous", backgroundColor: "#fff" },
   styleOptions: { gap: spacing.xl },
+  fontSample: { fontSize: 24, lineHeight: 29, fontWeight: "400" },
+  section: { gap: spacing.lg },
   group: { gap: spacing.sm },
   pair: { flexDirection: "row", gap: spacing.sm },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" },

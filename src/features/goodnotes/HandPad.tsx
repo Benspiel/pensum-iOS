@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SymbolView } from "expo-symbols";
 import { Modal, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import { WebView, type WebViewMessageEvent } from "./engine-view";
 
 import { radius, spacing, usePensumTheme } from "../../theme";
 import { AppText, Button } from "../../ui";

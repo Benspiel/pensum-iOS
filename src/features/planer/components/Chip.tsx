@@ -1,8 +1,9 @@
 /* Planer – antippbarer Chip (Fach-Vorschläge, Stapel-Auswahl). Optik und Verhalten wie der gemeinsame `Chip` (src/ui);
  * er kennt aber keine Radio-Rolle. Die Stapel-Auswahl ist eine Einzelauswahl und braucht sie für VoiceOver, daher dort ein eigener Pressable. */
-import { Pressable, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { AppText, Chip as SharedChip } from "../../../ui";
 import { radius, spacing, usePensumTheme } from "../../../theme";
+import { PressableScale } from "../../../ui/motion";
 
 export function Chip({ title, onPress, selected, accessibilityLabel, radio }: {
   title: string;
@@ -15,7 +16,7 @@ export function Chip({ title, onPress, selected, accessibilityLabel, radio }: {
   const { colors } = usePensumTheme();
   if (!radio) return <SharedChip label={title} selected={selected} onPress={onPress} accessibilityLabel={accessibilityLabel} />;
   return (
-    <Pressable
+    <PressableScale scaleTo={0.96}
       accessibilityRole="radio"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ selected: !!selected, checked: !!selected }}
@@ -26,7 +27,7 @@ export function Chip({ title, onPress, selected, accessibilityLabel, radio }: {
       ]}
     >
       <AppText variant="bodySm" style={{ color: selected ? colors.onPrimary : colors.ink }}>{title}</AppText>
-    </Pressable>
+    </PressableScale>
   );
 }
 

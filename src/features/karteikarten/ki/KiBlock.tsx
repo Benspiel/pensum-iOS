@@ -1,9 +1,9 @@
 /* Karteikarten mit KI – Block über den Tabs des Stapels (Web: kiBlock in karteikarten.js, Web-Commit 770dbe4):
  * Laden, Fehler, Vorschlagsliste mit Häkchen, „<n> Karten hinzufügen“ und „Verwerfen“.
  * Optik: .kk-add/.kk-ki (getönte Fläche), .kk-row (Haarlinie, Radius 16), Häkchenfeld in Ink. */
-import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { radius, spacing, usePensumTheme } from "../../../theme";
-import { AppText, Button, Panel } from "../../../ui";
+import { AppText, Button, Panel, PensumLoadingMark } from "../../../ui";
 import { FormMessage } from "../components/common";
 import { addButtonLabel, chosenCount } from "./cards";
 import type { KiState } from "./cards";
@@ -21,7 +21,7 @@ export function KiBlock({ state, onToggle, onAdd, onDiscard }: Props) {
     const title = "Die KI liest und schreibt deine Karten …";
     return (
       <Panel accessible accessibilityRole="progressbar" accessibilityLabel={title} accessibilityState={{ busy: true }} style={styles.busy}>
-        <ActivityIndicator color={colors.ink} accessible={false} />
+        <PensumLoadingMark />
         <AppText variant="bodySm" style={styles.busyText}>{title}</AppText>
       </Panel>
     );

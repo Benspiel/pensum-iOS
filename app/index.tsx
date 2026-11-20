@@ -1,19 +1,23 @@
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useMemo, useRef } from 'react';
-import { Animated, Image, Pressable, StyleSheet, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { AccessibilityInfo, Animated, Easing, Image, Platform, StyleSheet, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSession } from '../src/account/session';
 import { getToolAvailability, tools, type Tool, type ToolAvailability } from '../src/navigation/tools';
 import { gutter, radius, spacing, squircleRadius, usePensumTheme } from '../src/theme';
 import { AppText, Badge, Button, Card, Screen, SquircleIcon, TintContext } from '../src/ui';
+import { PressableScale, Reveal, stagger } from '../src/ui/motion';
 import { ParallaxBackground } from '../src/ui/ParallaxBackground';
 import { motionFactor } from '../src/ui/parallax';
 import { contentMaxWidth, innerWidth, toolGrid } from '../src/ui/wide';
 
 const NAV_MAX = 760;
+const NAV_LOGO_SIZE = 48;
 const logo = require('../assets/app-icon.png');
+const appVersion = Constants.expoConfig?.version ?? '0.1.0';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -76,14 +80,15 @@ export default function HomeScreen() {
           <View style={styles.toolSection} onLayout={(event) => { toolsTop.current = event.nativeEvent.layout.y; }}>
             <AppText variant="h3" accessibilityRole="header">Werkzeuge</AppText>
             <View style={[styles.list, { gap }, grid && styles.grid]}>
-              {visibleTools.map(({ tool, availability }) => (
-                <ToolTile
-                  key={tool.id}
-                  tool={tool}
-                  availability={availability}
-                  width={grid ? cardWidth : undefined}
-                  open={() => router.push(`/tools/${tool.id}`)}
-                />
+              {visibleTools.map(({ tool, availability }, index) => (
+                <Reveal key={tool.id} delay={120 + stagger(index, 45, 270)} style={grid ? { width: cardWidth } : undefined}>
+                  <ToolTile
+                    tool={tool}
+                    availability={availability}
+                    width={undefined}
+                    open={() => router.push(`/tools/${tool.id}`)}
+                  />
+                </Reveal>
               ))}
               <Card variant="soft" style={[styles.tile, grid && { width: cardWidth }]}>
                 <SquircleIcon tone="soft" symbol={{ ios: 'plus', android: 'add', web: 'add' }} />
@@ -94,19 +99,50 @@ export default function HomeScreen() {
               </Card>
             </View>
           </View>
+          <AppText variant="caption" tone="muted" style={[styles.center, styles.version]}>Version {appVersion}</AppText>
         </View>
       </Animated.ScrollView>
     </Screen>
   );
 }
 
-/** Schwebende Pill-Leiste wie `pensum-nav` der Website: canvas-soft, 4-px-Rand in canvas, Logo, Schriftzug, Konto. */
 function NavPill({ label, open }: { label: string; open: () => void }) {
   const { colors } = usePensumTheme();
+  const entrance = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled().catch(() => true).then((reduceMotion) => {
+      if (!active) return;
+      if (reduceMotion) {
+        entrance.setValue(1);
+        return;
+      }
+      Animated.timing(entrance, {
+        toValue: 1,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: Platform.OS !== 'web',
+      }).start();
+    });
+    return () => {
+      active = false;
+      entrance.stopAnimation();
+    };
+  }, [entrance]);
+
+  const translateY = useMemo(
+    () => entrance.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }),
+    [entrance],
+  );
+
   return (
-    <View
+    <Animated.View
       accessibilityRole="header"
-      style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.canvas }]}
+      style={[
+        styles.pill,
+        { backgroundColor: colors.surface, borderColor: colors.border, opacity: entrance, transform: [{ translateY }] },
+      ]}
     >
       <View style={styles.brand}>
         <Image
@@ -116,15 +152,15 @@ function NavPill({ label, open }: { label: string; open: () => void }) {
         />
         <AppText variant="h4" numberOfLines={1} style={styles.brandText}>Pensum</AppText>
       </View>
-      <Button title={label} size="sm" onPress={open} accessibilityHint="Öffnet Anmeldung und Konto" />
-    </View>
+      <Button title={label} size="md" style={styles.navAccount} onPress={open} accessibilityHint="Öffnet Anmeldung und Konto" />
+    </Animated.View>
   );
 }
 
 function Hero({ accountLabel, showTools, openAccount }: { accountLabel: string; showTools: () => void; openAccount: () => void }) {
   return (
     <View style={styles.hero}>
-      <AppText variant="display" accessibilityRole="header" style={styles.center}>Alles fürs Pensum.</AppText>
+      <AppText variant="display" accessibilityRole="header" style={styles.center}>Pensum</AppText>
       <AppText variant="bodyLg" tone="muted" style={[styles.center, styles.heroSub]}>
         Schul-Tools an einem Ort. Einmal anmelden, überall angemeldet. Oder einfach ohne Konto loslegen.
       </AppText>
@@ -164,7 +200,8 @@ function ToolTile({ tool, availability, width, open }: {
   const dim = disabled ? styles.dim : undefined;
 
   return (
-    <Pressable
+    <PressableScale
+      scaleTo={0.98}
       accessibilityRole="link"
       accessibilityLabel={[tool.title, tool.description, badge && !locked ? badge.label : undefined, note].filter(Boolean).join('. ')}
       accessibilityState={{ disabled }}
@@ -177,7 +214,6 @@ function ToolTile({ tool, availability, width, open }: {
           backgroundColor: disabled || pressed ? colors.surface : colors.canvas,
           borderColor: disabled || pressed ? colors.surface : colors.hairlineSoft,
         },
-        pressed && { transform: [{ scale: 0.985 }] },
       ]}
     >
       <TintContext.Provider value={disabled}>
@@ -205,7 +241,7 @@ function ToolTile({ tool, availability, width, open }: {
         )}
       </View>
       </TintContext.Provider>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -223,18 +259,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
-    minHeight: 60,
-    padding: spacing.xs,
-    borderWidth: 4,
+    minHeight: 68,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
     borderRadius: radius.pill,
-    borderCurve: 'continuous',
     marginBottom: spacing.sm,
   },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1, minHeight: 44 },
-  logo: { width: 44, height: 44, borderRadius: squircleRadius(44), borderCurve: 'continuous' },
-  brandText: { fontSize: 18, flexShrink: 1 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
+  logo: { width: NAV_LOGO_SIZE, height: NAV_LOGO_SIZE, borderRadius: squircleRadius(NAV_LOGO_SIZE), borderCurve: 'continuous' },
+  brandText: { fontSize: 20, flexShrink: 1 },
+  navAccount: { paddingHorizontal: spacing.md },
   hero: { alignItems: 'center', paddingTop: spacing.xxxl, paddingBottom: spacing.xxl, gap: spacing.xl },
   center: { textAlign: 'center' },
+  version: { marginTop: spacing.xxl },
   heroSub: { maxWidth: 460 },
   heroActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.md },
   toolSection: { gap: spacing.lg },
