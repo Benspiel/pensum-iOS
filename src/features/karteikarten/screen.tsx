@@ -1,7 +1,7 @@
 /* Karteikarten – Screen (Route app/tools/karteikarten.tsx liest `deck` aus useLocalSearchParams und reicht es als deckParam durch).
  * Meldungen wie der Web-Toast: Ink-Fläche, Text in on-primary, Fehler halbfett.
  * Web-Quelle: tools/karteikarten/karteikarten.js (Web-Commit 770dbe4). Zustand: hooks.ts, Logik: session-model.ts. Ohne KI-Block (Folgepaket). */
-import { router, usePreventRemove } from "expo-router";
+import { router, Stack, usePreventRemove } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
@@ -42,10 +42,11 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
   // Lernrunde: kein Scrollen, die Karte füllt den Platz und weicht der Tastatur aus
   const studying = view.name === "study" || view.name === "loading" || view.name === "result";
   const headerHeight = useHeaderHeight();
-  // Zurückwischen oder Zurück-Knopf mitten in einer Runde: erst nachfragen
-  usePreventRemove(view.name === "study" || view.name === "loading", ({ repeat }) => {
+  // Mitten in einer Runde: Zurückwischen tut nichts. Der Zurück-Knopf fragt erst nach und führt danach zur Stapelliste (nicht aus Karteikarten heraus).
+  const inRound = view.name === "study" || view.name === "loading";
+  usePreventRemove(inRound, () => {
     void confirmAction("Runde wirklich beenden?", "Dein Fortschritt (auch die Level) bleibt gespeichert, aber die Runde endet hier.", "Beenden", true)
-      .then((ok) => { if (ok) repeat(); });
+      .then((ok) => { if (ok) actions.showList(); });
   });
 
   // Verwaister Stapel (z. B. gelöscht): zurück zur Liste
@@ -143,6 +144,7 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
 
   return (
     <Screen navigationTitle="Karteikarten" wide={split} scroll={!studying}>
+      <Stack.Screen options={{ gestureEnabled: !inRound }} />
       {k.notice ? (
         <PressableScale
           scaleTo={0.99}

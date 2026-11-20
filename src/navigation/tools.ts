@@ -25,7 +25,7 @@ export interface Tool {
 const definitions: Record<ToolId, Omit<Tool, 'id'>> = {
   goodnotes: {
     title: 'Handschrift-Tool',
-    description: 'Text in Handschrift verwandeln und als Goodnotes-Datei oder PDF exportieren.',
+    description: 'Text in Handschrift verwandeln und als PDF exportieren.',
     symbol: { ios: 'pencil.line', android: 'draw', web: 'draw' },
     access: 'public',
     implementation: 'native',

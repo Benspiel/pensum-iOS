@@ -331,7 +331,7 @@ export function useKarteikarten(deckParam?: string | string[]) {
     },
     async quit() {
       const ok = await confirmAsync({ title: "Runde wirklich beenden?", text: "Dein Fortschritt (auch die Level) bleibt gespeichert, aber die Runde endet hier.", confirm: "Beenden", cancel: "Weiterlernen" });
-      if (ok) dispatch({ type: "toDeck" });
+      if (ok) dispatch({ type: "list" }); // Runde beenden: zur Stapelliste von Karteikarten
     },
   };
 
