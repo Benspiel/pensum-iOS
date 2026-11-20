@@ -46,6 +46,34 @@ const MapDrawing = memo(function MapDrawing({ scene, ink, width, height }: {
   );
 });
 
+/** Kleine Vorschau für die Übersicht: nur Linien und Beschriftungen, passend in die Fläche eingepasst, ohne Bedienhilfe-Ebene. */
+export const MapThumbnail = memo(function MapThumbnail({ scene, ink, width, height }: { scene: Scene; ink: string; width: number; height: number }) {
+  const { customFonts } = usePensumTheme();
+  const positions = restingPositions(scene);
+  return (
+    <Svg width={width} height={height} viewBox={`0 0 ${scene.width} ${scene.height}`} preserveAspectRatio="xMidYMid meet"
+      accessible={false} importantForAccessibility="no-hide-descendants">
+      {scene.edges.map((e) => {
+        const d = edgePath(e, positions);
+        return d ? <Path key={e.id} d={d} fill="none" stroke={ink} strokeWidth={e.width} strokeLinecap="round" /> : null;
+      })}
+      {scene.nodes.map((node) => (
+        <G key={node.id} x={node.x} y={node.y}>
+          {node.root ? <Ellipse cx={node.w / 2} cy={node.h / 2} rx={node.w / 2} ry={node.h / 2} fill={ink} fillOpacity={ROOT_FILL_OPACITY} stroke={ink} strokeWidth={ROOT_STROKE} /> : null}
+          {node.lines.map((line, i) => line.kind === 'ink' ? (
+            <Path key={i} d={line.d} fill="none" stroke={ink} strokeWidth={line.width} strokeLinecap="round" strokeLinejoin="round" />
+          ) : (
+            <SvgText key={i} x={line.x} y={line.baseline} fontSize={line.size} fill={ink} textAnchor="middle"
+              {...(customFonts ? { fontFamily: familyOf(line.face) } : { fontWeight: line.weight >= 600 ? '600' : '400' })}>
+              {line.text}
+            </SvgText>
+          ))}
+        </G>
+      ))}
+    </Svg>
+  );
+});
+
 export const MindmapCanvas = memo(function MindmapCanvas({ scene, ink }: { scene: Scene; ink: string }) {
   const { colors } = usePensumTheme();
   const [viewport, setViewport] = useState({ width: 0, height: 0 });

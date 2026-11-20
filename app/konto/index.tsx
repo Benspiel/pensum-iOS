@@ -12,6 +12,8 @@ import { type AccountScope, type EmailCode, useSession } from '../../src/account
 import { AppText, Button, Card, ErrorState, Field, LoadingState, Screen, Segmented, ThemeSelector, haptic, type SegmentedOption } from '../../src/ui';
 import { BottomSheet } from '../../src/ui/BottomSheet';
 import { ProfileCard, SettingsPanel, SettingsRow, SettingsSection } from '../../src/account/settings-ui';
+import { NotificationSettings } from '../../src/account/NotificationSettings';
+import { loadDevice, removeDevice, summary as pushSummary, type PushPrefs } from '../../src/notifications';
 
 const guestTabs = [
   { id: 'login', label: 'Anmeldung' },
@@ -170,12 +172,13 @@ function ask(title: string, message: string, button: string, confirmed: () => vo
   ]);
 }
 
-type SettingsSheet = 'name' | 'email' | 'password' | 'devices' | 'data' | 'delete';
+type SettingsSheet = 'name' | 'email' | 'password' | 'devices' | 'notifications' | 'data' | 'delete';
 const sheetTitles: Record<SettingsSheet, string> = {
   name: 'Name',
   email: 'E-Mail-Adresse',
   password: 'Passwort',
   devices: 'Angemeldete Geräte',
+  notifications: 'Benachrichtigungen',
   data: 'Gespeichert in deinem Konto',
   delete: 'Konto löschen',
 };
@@ -192,6 +195,7 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
   const [deletion, setDeletion] = useState('');
   const [devices, setDevices] = useState<Devices | null>(null);
   const [sheet, setSheet] = useState<SettingsSheet | null>(null);
+  const [push, setPush] = useState<PushPrefs | null>(null);
   const disabled = offline || action.busy;
 
   useEffect(() => {
@@ -200,6 +204,12 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
     getAccountDevices(scope).then((list) => { if (active) setDevices(list); }, () => undefined);
     return () => { active = false; };
   }, [scope, offline]);
+
+  useEffect(() => {
+    let active = true;
+    void loadDevice().then((prefs) => { if (active) setPush(prefs); });
+    return () => { active = false; };
+  }, []);
 
   function openSheet(next: SettingsSheet) {
     action.reset();
@@ -219,6 +229,7 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
     setSheet(null);
   }
   async function logout(everywhere = false) {
+    await removeDevice(); // dieses Gerät bekommt nach dem Abmelden keine Erinnerungen mehr
     try {
       await session.logout({ everywhere });
     } catch (error) {
@@ -258,6 +269,9 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
         <SettingsSection title="Sicherheit">
           <SettingsRow label="Passwort" value="••••••••" disabled={offline} onPress={() => openSheet('password')} />
           <SettingsRow label="Angemeldete Geräte" value={deviceCount} disabled={offline} onPress={() => openSheet('devices')} />
+        </SettingsSection>
+        <SettingsSection title="Mitteilungen">
+          <SettingsRow label="Benachrichtigungen" value={pushSummary(push)} disabled={offline} onPress={() => openSheet('notifications')} />
         </SettingsSection>
         <SettingsSection title="Daten">
           <SettingsRow label="Gespeichert in deinem Konto" disabled={offline} onPress={() => openSheet('data')} />
@@ -342,6 +356,7 @@ function AccountDetails({ user, scope, offline }: { user: SessionUser; scope: Ac
                 () => void action.run(() => logout(true)))} />
           </>
         )}
+        {sheet === 'notifications' && <NotificationSettings userId={user.id} onChange={setPush} />}
         {sheet === 'data' && (
           <>
             <AppText tone="muted">Fächer, Noten, Mindmaps, Karten, Planereinträge und dein Handschrift-Profil liegen in deinem Konto.</AppText>

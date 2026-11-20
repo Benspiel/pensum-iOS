@@ -27,6 +27,7 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-font',
     '@react-native-community/datetimepicker',
+    'expo-notifications',
     ['expo-secure-store', { faceIDPermission: false }],
     [
       'expo-image-picker',

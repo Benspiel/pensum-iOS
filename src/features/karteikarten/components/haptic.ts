@@ -4,7 +4,7 @@ import { haptic as feedback } from "../../../ui/haptics";
 
 export type HapticKind = "start" | "flip" | "right" | "wrong" | "done";
 
-const KIND = { start: "tap", flip: "select", right: "tap", wrong: "warn", done: "success" } as const;
+const KIND = { start: "tap", flip: "select", right: "success", wrong: "error", done: "success" } as const;
 
 export function haptic(kind: HapticKind): void {
   feedback(KIND[kind]);

@@ -17,6 +17,7 @@ export const tableIds = {
   chats: 'chats',
   chatMessages: 'chat_messages',
   toolVisits: 'tool_visits',
+  pushDevices: 'push_devices',
 } as const;
 
 export const functionIds = {

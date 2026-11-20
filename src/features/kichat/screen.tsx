@@ -35,23 +35,63 @@ function byUpdated(a: Chat, b: Chat) {
   return b.updatedAt.localeCompare(a.updatedAt);
 }
 
-function IconButton({ icon, label, onPress, disabled, filled, haptic = 'tap' }: {
+const controlSize = 44;
+/** Höhe der Eingabeleiste: Feld + Innenabstand + Rahmen. Der Button „Neuer Chat“ daneben ist genauso hoch. */
+const composerHeight = controlSize + spacing.xs * 2 + 2;
+
+const dayMs = 86_400_000;
+function groupChats(chats: Chat[]) {
+  const startOfToday = new Date().setHours(0, 0, 0, 0);
+  const groups: { label: string; chats: Chat[] }[] = [
+    { label: 'Heute', chats: [] }, { label: 'Gestern', chats: [] }, { label: 'Letzte 7 Tage', chats: [] },
+    { label: 'Letzte 30 Tage', chats: [] }, { label: 'Älter', chats: [] },
+  ];
+  for (const chat of chats) {
+    const age = startOfToday - new Date(chat.updatedAt).getTime();
+    groups[age < 0 ? 0 : age < dayMs ? 1 : age < 7 * dayMs ? 2 : age < 30 * dayMs ? 3 : 4]?.chats.push(chat);
+  }
+  return groups.filter((group) => group.chats.length);
+}
+
+function IconButton({ icon, label, onPress, disabled, filled, haptic = 'tap', size = controlSize, tone = 'surface' }: {
   icon: SymbolViewProps['name'];
   label: string;
   onPress: () => void;
   disabled?: boolean;
   filled?: boolean;
+  size?: number;
+  /** `ghost`: ohne Fläche, nur bei Druck sichtbar (in Listenzeilen). */
+  tone?: 'surface' | 'ghost';
   /** Standard `tap`; Senden gibt `send` mit, Öffnen und Schließen `open` / `close`. */
   haptic?: HapticKind | false;
 }) {
   const { colors } = usePensumTheme();
   return (
     <PressableScale scaleTo={0.92} haptic={haptic} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled }} onPress={onPress}
-      style={({ pressed }) => [styles.iconButton, {
-        backgroundColor: filled ? colors.ink : pressed ? colors.border : colors.surface,
+      style={({ pressed }) => [styles.iconButton, { width: size, height: size }, {
+        backgroundColor: filled ? colors.ink : pressed ? colors.border : tone === 'ghost' ? 'transparent' : colors.surface,
         opacity: disabled ? 0.45 : pressed && filled ? 0.75 : 1,
       }]}>
       <SymbolView name={icon} size={19} tintColor={filled ? colors.onPrimary : colors.ink} />
+    </PressableScale>
+  );
+}
+
+function ChatRowItem({ chat, selected, disabled, onOpen, onManage }: {
+  chat: Chat; selected: boolean; disabled: boolean; onOpen: () => void; onManage: () => void;
+}) {
+  const { colors } = usePensumTheme();
+  const [hovered, setHovered] = useState(false);
+  const showMore = hovered || selected;
+  return (
+    <PressableScale scaleTo={0.99} haptic="tap" accessibilityRole="button" accessibilityLabel={chat.title || 'Chat'}
+      accessibilityState={{ selected, disabled }} disabled={disabled} onPress={onOpen}
+      onLongPress={onManage} onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
+      style={({ pressed }) => [styles.historyItem, { backgroundColor: selected ? colors.accentSurface : pressed || hovered ? colors.border : 'transparent' }]}>
+      <AppText variant="bodySm" numberOfLines={1} style={styles.historyTitle}>{chat.title || 'Chat'}</AppText>
+      <View style={[styles.historyMore, { opacity: showMore ? 1 : 0 }]} pointerEvents={showMore ? 'auto' : 'none'}>
+        <IconButton icon="ellipsis" label={`Chat „${chat.title || 'Chat'}“ verwalten`} haptic="open" size={32} tone="ghost" disabled={disabled} onPress={onManage} />
+      </View>
     </PressableScale>
   );
 }
@@ -77,6 +117,7 @@ export function KiChatScreen({ userId }: { userId: string }) {
   const [sheet, setSheet] = useState<'compose' | 'chat'>();
   const [pendingMessage, setPendingMessage] = useState<string>();
   const [chatTitle, setChatTitle] = useState('');
+  const [managed, setManaged] = useState<Chat | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState('');
   const [listAttempt, setListAttempt] = useState(0);
@@ -195,14 +236,24 @@ export function KiChatScreen({ userId }: { userId: string }) {
     });
   }
 
+  function manage(chat: Chat) {
+    Keyboard.dismiss();
+    action.setError('');
+    setManaged(chat);
+    setChatTitle(chat.title);
+    setSheet('chat');
+  }
+
   function rename() {
     const title = chatTitle.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
-    if (!active || !title || title === active.title) return;
+    if (!managed || !title || title === managed.title) return;
+    const target = managed;
     void action.run(async () => {
       requireAccount();
-      const result = await executeFunction<{ title: string }>(functionIds.kiChat, { action: 'rename', chatId: active.id, title });
-      const chat = { ...active, title: result.title };
-      setActive(chat);
+      const result = await executeFunction<{ title: string }>(functionIds.kiChat, { action: 'rename', chatId: target.id, title });
+      const chat = { ...target, title: result.title };
+      if (active?.id === chat.id) setActive(chat);
+      setManaged(chat);
       setChatTitle(chat.title);
       setChats((items) => items.map((item) => item.id === chat.id ? chat : item));
       setSheet(undefined);
@@ -210,13 +261,15 @@ export function KiChatScreen({ userId }: { userId: string }) {
   }
 
   function remove() {
-    if (!active) return;
+    if (!managed) return;
+    const target = managed;
     void action.run(async () => {
       if (!await confirmAction('Chat löschen?', 'Die Unterhaltung wird aus deinem Konto gelöscht.', 'Löschen', true)) return;
       requireAccount();
-      await executeFunction(functionIds.kiChat, { action: 'delete', chatId: active.id });
-      setChats((items) => items.filter((chat) => chat.id !== active.id));
-      newChat();
+      await executeFunction(functionIds.kiChat, { action: 'delete', chatId: target.id });
+      setChats((items) => items.filter((chat) => chat.id !== target.id));
+      setSheet(undefined);
+      if (active?.id === target.id) newChat();
     });
   }
 
@@ -224,19 +277,20 @@ export function KiChatScreen({ userId }: { userId: string }) {
     <View style={styles.history}>
       <View style={styles.historyHeader}>
         <AppText variant="section" accessibilityRole="header">Deine Chats</AppText>
-        {!wide ? <IconButton icon="xmark" label="Chatliste schließen" haptic="close" onPress={() => setMenu(false)} /> : null}
+        {!wide ? <IconButton icon="xmark" label="Chatliste schließen" haptic="close" size={40} onPress={() => setMenu(false)} /> : null}
       </View>
       <ScrollView contentContainerStyle={styles.historyList} keyboardShouldPersistTaps="handled">
         {listLoading ? <LoadingState title="Chats werden geladen" /> : null}
         {listError ? <ErrorState message={listError} onRetry={() => setListAttempt((value) => value + 1)} /> : null}
         {!listLoading && !listError && !chats.length ? <AppText tone="muted" variant="bodySm">Noch keine Chats</AppText> : null}
-        {chats.map((chat) => (
-          <PressableScale key={chat.id} scaleTo={0.99} haptic="tap" accessibilityRole="button" accessibilityState={{ selected: active?.id === chat.id, disabled: action.busy }}
-            disabled={action.busy} onPress={() => open(chat)} style={({ pressed }) => [
-              styles.historyItem, { backgroundColor: active?.id === chat.id ? colors.accentSurface : pressed ? colors.border : 'transparent' },
-            ]}>
-            <AppText variant="bodySm" numberOfLines={2}>{chat.title || 'Chat'}</AppText>
-          </PressableScale>
+        {groupChats(chats).map((group) => (
+          <View key={group.label} style={styles.historyGroup}>
+            <AppText variant="caption" tone="muted" accessibilityRole="header" style={styles.historyGroupLabel}>{group.label}</AppText>
+            {group.chats.map((chat) => (
+              <ChatRowItem key={chat.id} chat={chat} selected={active?.id === chat.id} disabled={action.busy}
+                onOpen={() => open(chat)} onManage={() => manage(chat)} />
+            ))}
+          </View>
         ))}
       </ScrollView>
     </View>
@@ -249,17 +303,12 @@ export function KiChatScreen({ userId }: { userId: string }) {
         {wide ? <View style={[styles.sidebar, { backgroundColor: colors.surface, borderRightColor: colors.border }]}>{chatList}</View> : null}
         <View style={styles.conversation}>
           <View style={[styles.chatHeader, conversationInset, { borderBottomColor: colors.hairlineSoft }]}>
-            {!wide ? <IconButton icon="line.3.horizontal" label="Chatliste öffnen" haptic="open" disabled={action.busy} onPress={() => {
+            {!wide ? <IconButton icon="line.3.horizontal" label="Chatliste öffnen" haptic="open" size={40} disabled={action.busy} onPress={() => {
               Keyboard.dismiss();
               setMenu(true);
             }} /> : null}
             <AppText variant="fieldLabel" accessibilityRole="header" numberOfLines={1} style={styles.chatTitle}>{active?.title || 'Neuer Chat'}</AppText>
-            {active ? <IconButton icon="ellipsis" label="Chat verwalten" haptic="open" disabled={action.busy} onPress={() => {
-              Keyboard.dismiss();
-              action.setError('');
-              setChatTitle(active.title);
-              setSheet('chat');
-            }} /> : null}
+            {active ? <IconButton icon="ellipsis" label="Chat verwalten" haptic="open" size={40} disabled={action.busy} onPress={() => manage(active)} /> : null}
           </View>
 
           <ScrollView ref={messageScroll} style={styles.messageScroll} contentContainerStyle={[styles.messageContent, conversationInset]}
@@ -328,7 +377,7 @@ export function KiChatScreen({ userId }: { userId: string }) {
                   style={[styles.input, { color: colors.ink, fontSize: body.fontSize, fontFamily: body.fontFamily }]} />
                 <IconButton icon="arrow.up" label="Nachricht senden" filled haptic="send" disabled={action.busy || (!text.trim() && !attachment)} onPress={send} />
               </View>
-              <IconButton icon="square.and.pencil" label="Neuen Chat erstellen" disabled={action.busy} onPress={newChat} />
+              <IconButton icon="square.and.pencil" label="Neuen Chat erstellen" size={composerHeight} disabled={action.busy} onPress={newChat} />
             </View>
           </View>
         </View>
@@ -347,7 +396,7 @@ export function KiChatScreen({ userId }: { userId: string }) {
       <BottomSheet visible={sheet === 'chat'} title="Chat verwalten" busy={action.busy} onClose={() => setSheet(undefined)}>
         {action.error ? <ErrorState message={action.error} /> : null}
         <Field label="Chatname" value={chatTitle} onChangeText={setChatTitle} maxLength={60} editable={!action.busy} />
-        <Button title="Umbenennen" haptic="send" disabled={action.busy || !chatTitle.trim() || chatTitle.trim() === active?.title} onPress={rename} />
+        <Button title="Umbenennen" haptic="send" disabled={action.busy || !chatTitle.trim() || chatTitle.trim() === managed?.title} onPress={rename} />
         <Button title="Chat löschen" variant="plain" haptic="warn" disabled={action.busy} onPress={remove} />
       </BottomSheet>
 
@@ -368,9 +417,13 @@ const styles = StyleSheet.create({
   conversation: { flex: 1, minWidth: 0 },
   sidebar: { width: 248, borderRightWidth: StyleSheet.hairlineWidth },
   history: { flex: 1, paddingHorizontal: spacing.md },
-  historyHeader: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
-  historyList: { gap: spacing.xs, paddingBottom: spacing.lg },
-  historyItem: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.field },
+  historyHeader: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  historyList: { gap: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xl },
+  historyGroup: { gap: 2 },
+  historyGroupLabel: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
+  historyItem: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingLeft: spacing.md, paddingRight: spacing.xs, borderRadius: radius.field },
+  historyTitle: { flex: 1, minWidth: 0 },
+  historyMore: { alignItems: 'center', justifyContent: 'center' },
   chatHeader: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   chatTitle: { flex: 1 },
   messageScroll: { flex: 1, minHeight: 0 },
@@ -387,7 +440,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 44, maxHeight: 120, paddingHorizontal: spacing.xs, paddingTop: 11, paddingBottom: 11 },
   attachment: { alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', paddingLeft: spacing.md, borderRadius: radius.pill },
   attachmentName: { flexShrink: 1 },
-  iconButton: { width: 44, height: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  iconButton: { borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   drawerFrame: { flex: 1 },
   drawerBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.36)' },
   drawer: { flex: 1, width: '86%', maxWidth: 330 },

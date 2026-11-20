@@ -17,6 +17,7 @@ import { takeHandoff } from "../shared/handoff";
 import { ExportBar, ExportMenu } from "./ExportMenu";
 import { fontSampleSources, fontSamples } from "./font-samples";
 import { HandPad } from "./HandPad";
+import { PreviewViewer } from "./PreviewViewer";
 import { optionColumns, previewColumns } from "./layout";
 import { handInfo } from "./hand-store";
 import { GOODNOTES_HOST_HTML } from "./host-html.generated";
@@ -56,6 +57,7 @@ export default function GoodnotesScreen() {
   const [pages, setPages] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [exportError, setExportError] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -235,9 +237,10 @@ export default function GoodnotesScreen() {
         accessibilityLabel="Vorschau der Seiten"
       >
         {pages.length
-          ? pages.map((uri, i) => <PreviewPage key={i} uri={uri} label={`Seite ${i + 1} von ${pages.length}`} style={pageStyle} />)
+          ? pages.map((uri, i) => <PreviewPage key={i} uri={uri} label={`Seite ${i + 1} von ${pages.length}`} style={pageStyle} onPress={() => { Keyboard.dismiss(); setViewerIndex(i); }} />)
           : <PagePlaceholder style={[pageStyle, { backgroundColor: colors.canvas }]} />}
       </ScrollView>
+      <PreviewViewer pages={pages} index={viewerIndex} onClose={() => setViewerIndex(null)} />
     </View>
   );
   const stylePanel = (

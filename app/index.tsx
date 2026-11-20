@@ -15,6 +15,7 @@ import { motionFactor } from '../src/ui/parallax';
 import { contentMaxWidth, innerWidth, toolGrid } from '../src/ui/wide';
 
 const NAV_LOGO_SIZE = 32;
+const PILL_BLOCK_HEIGHT = 68; // Pille (60) + Abstand darunter (8)
 const logo = require('../assets/app-icon.png');
 const appVersion = Constants.expoConfig?.version ?? '0.1.0';
 
@@ -39,7 +40,9 @@ export default function HomeScreen() {
   );
   const toolsTop = useRef(0);
   // iPad: Der Hintergrund läuft über die ganze Breite, der Inhalt steht in einer mittigen Spalte (bis 1120 pt)
-  const { left, right } = useSafeAreaInsets();
+  const { top, left, right } = useSafeAreaInsets();
+  // Die Pille schwebt über der Scrollfläche; diese läuft bis an den oberen Rand, damit nichts hart abgeschnitten wird.
+  const navHeight = top + spacing.sm + PILL_BLOCK_HEIGHT;
   const edge = gutter(width);
   const gap = edge >= 24 ? spacing.xl : spacing.lg;
   const layout = toolGrid(innerWidth(width, left + right, edge, true), fontScale, gap);
@@ -52,16 +55,12 @@ export default function HomeScreen() {
   const signedIn = state.status === 'account';
 
   return (
-    <Screen includeTopInset scroll={false} wide contentStyle={styles.screen}>
-      <View style={[styles.column, column]}>
-        <NavPill label={signedIn || state.status === 'loading' ? 'Konto' : 'Anmelden'} open={() => router.push('/konto')} />
-      </View>
-
+    <Screen scroll={false} wide contentStyle={styles.screen}>
       <Animated.ScrollView
         ref={scroller}
         style={styles.scroller}
-        contentContainerStyle={styles.scrollContent}
-        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={[styles.scrollContent, { paddingTop: navHeight }]}
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
         onScroll={onScroll}
         scrollEventThrottle={16}
@@ -101,6 +100,12 @@ export default function HomeScreen() {
           <AppText variant="caption" tone="muted" style={[styles.center, styles.version]}>Version {appVersion}</AppText>
         </View>
       </Animated.ScrollView>
+
+      <View style={[styles.navOverlay, { paddingTop: top + spacing.sm }]} pointerEvents="box-none">
+        <View style={[styles.column, column]} pointerEvents="box-none">
+          <NavPill label={signedIn || state.status === 'loading' ? 'Konto' : 'Anmelden'} open={() => router.push('/konto')} />
+        </View>
+      </View>
     </Screen>
   );
 }
@@ -247,7 +252,8 @@ function ToolTile({ tool, availability, width, open }: {
 
 const styles = StyleSheet.create({
   // volle Breite: Hintergrund und Scrollfläche gehen bis an den Rand, der Inhalt steht in `column`
-  screen: { paddingTop: spacing.sm, paddingBottom: 0, gap: 0, maxWidth: 4096, paddingHorizontal: 0 },
+  screen: { paddingTop: 0, paddingBottom: 0, gap: 0, maxWidth: 4096, paddingHorizontal: 0 },
+  navOverlay: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
   column: { width: '100%', alignSelf: 'center' },
   scroller: { flex: 1 },
   scrollContent: { paddingBottom: spacing.xxxl },

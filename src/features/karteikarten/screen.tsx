@@ -1,9 +1,11 @@
 /* Karteikarten – Screen (Route app/tools/karteikarten.tsx liest `deck` aus useLocalSearchParams und reicht es als deckParam durch).
  * Meldungen wie der Web-Toast: Ink-Fläche, Text in on-primary, Fehler halbfett.
  * Web-Quelle: tools/karteikarten/karteikarten.js (Web-Commit 770dbe4). Zustand: hooks.ts, Logik: session-model.ts. Ohne KI-Block (Folgepaket). */
-import { router } from "expo-router";
+import { router, usePreventRemove } from "expo-router";
+import { useHeaderHeight } from "expo-router/react-navigation";
 import { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
+import { confirmAction } from "../appwrite-tools/actions";
 import type { Deck, StudyType } from "./core";
 import type { DeckTab } from "./session-model";
 import { useKarteikarten } from "./hooks";
@@ -36,6 +38,14 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
   const layout = kkLayout(view.name, split);
   const inSplit = layout.mode === "split";
   const login = () => router.push("/konto");
+  // Lernrunde: kein Scrollen, die Karte füllt den Platz und weicht der Tastatur aus
+  const studying = view.name === "study" || view.name === "loading" || view.name === "result";
+  const headerHeight = useHeaderHeight();
+  // Zurückwischen oder Zurück-Knopf mitten in einer Runde: erst nachfragen
+  usePreventRemove(view.name === "study" || view.name === "loading", ({ repeat }) => {
+    void confirmAction("Runde wirklich beenden?", "Dein Fortschritt (auch die Level) bleibt gespeichert, aber die Runde endet hier.", "Beenden", true)
+      .then((ok) => { if (ok) repeat(); });
+  });
 
   // Verwaister Stapel (z. B. gelöscht): zurück zur Liste
   const viewDeckId = view.name === "deck" ? view.id : view.name === "study" || view.name === "result" ? view.round.deckId : null;
@@ -131,7 +141,7 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
   const closeDialog = () => setDialog(null);
 
   return (
-    <Screen navigationTitle="Karteikarten" wide={split}>
+    <Screen navigationTitle="Karteikarten" wide={split} scroll={!studying}>
       {k.notice ? (
         <PressableScale
           scaleTo={0.99}
@@ -145,7 +155,11 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
           <AppText variant="bodySm" style={{ color: colors.onPrimary, fontWeight: k.notice.error ? "600" : "400" }}>{k.notice.text}</AppText>
         </PressableScale>
       ) : null}
-      <View style={styles.body}>{body}</View>
+      {studying ? (
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={headerHeight} style={styles.fill}>
+          <View style={[styles.body, styles.fill]}>{body}</View>
+        </KeyboardAvoidingView>
+      ) : <View style={styles.body}>{body}</View>}
 
       {dialog?.kind === "newDeck" ? (
         <DeckDialog kiTester={k.kiTester} onSubmit={actions.createDeck} onKi={(id, input) => void actions.kiGenerate(id, input)} onClose={closeDialog} />
@@ -168,6 +182,7 @@ export default function KarteikartenScreen({ deckParam }: { deckParam?: string |
 
 const styles = StyleSheet.create({
   body: { gap: spacing.lg },
+  fill: { flex: 1 },
   placeholder: { minHeight: 320, justifyContent: "center" },
   notice: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderRadius: radius.field, borderCurve: "continuous" },
 });

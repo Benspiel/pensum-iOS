@@ -4,7 +4,7 @@
  * Abstände Web → App: s-xxs 4 = xs, s-xs 8 = sm, s-sm 12 = md, s-md 16 = lg, s-lg 24 = xl. Tinten- und Papierfarben sind wie im Web fest. */
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Image, StyleSheet, View, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Animated, Image, Pressable, StyleSheet, View, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { radius, spacing, usePensumTheme } from "../../theme";
 import { AppText, Button, PensumLoadingMark, TintContext } from "../../ui";
 import { DURATION, EASE, NATIVE_DRIVER, PressableScale, Reveal, useReduceMotion, useToggleValue } from "../../ui/motion";
@@ -192,7 +192,7 @@ export function ExportList({ rows }: { rows: ExportRow[] }) {
 /* ---------- Seitenvorschau ---------- */
 
 /** Eine Seite der Vorschau: blendet beim Laden weich ein, statt hart aufzutauchen. */
-export function PreviewPage({ uri, label, style }: { uri: string; label: string; style: StyleProp<ViewStyle> }) {
+export function PreviewPage({ uri, label, style, onPress }: { uri: string; label: string; style: StyleProp<ViewStyle>; onPress?: () => void }) {
   const reduce = useReduceMotion();
   const opacity = useRef(new Animated.Value(reduce ? 1 : 0)).current;
   const shown = useRef(false);
@@ -201,9 +201,12 @@ export function PreviewPage({ uri, label, style }: { uri: string; label: string;
     shown.current = true;
     Animated.timing(opacity, { toValue: 1, duration: reduce ? 0 : DURATION.change + 80, easing: EASE, useNativeDriver: NATIVE_DRIVER }).start();
   };
+  const image = <Image source={{ uri }} resizeMode="contain" accessibilityLabel={label} onLoad={show} onError={show} style={StyleSheet.absoluteFill} />;
   return (
     <Animated.View style={[style, { opacity, overflow: "hidden" }]}>
-      <Image source={{ uri }} resizeMode="contain" accessibilityLabel={label} onLoad={show} onError={show} style={StyleSheet.absoluteFill} />
+      {onPress ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`${label}, groß anzeigen`} onPress={onPress} style={StyleSheet.absoluteFill}>{image}</Pressable>
+      ) : image}
     </Animated.View>
   );
 }
