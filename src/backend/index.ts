@@ -6,6 +6,7 @@ import {
   ExecutionMethod,
   Functions,
   ID,
+  Messaging,
   type Models,
   Permission,
   Query,
@@ -29,6 +30,7 @@ export const client = new Client()
 export const account = new Account(client);
 export const tablesDB = new TablesDB(client);
 export const teams = new Teams(client);
+export const messaging = new Messaging(client);
 const functions = new Functions(client);
 
 export function ownerPermissions(userId: string): string[] {

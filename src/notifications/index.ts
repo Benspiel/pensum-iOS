@@ -1,11 +1,13 @@
-/* Push-Benachrichtigungen – Anmeldung des Geräts beim Expo-Push-Dienst und Speichern der Wünsche im Konto (Tabelle `push_devices`).
- * Alles hier ist Zugabe: Fehler werden als Text gemeldet, nie geworfen, damit die App nie an Benachrichtigungen scheitert. */
-import Constants from 'expo-constants';
+/* Push-Benachrichtigungen über Appwrite Messaging.
+ * Das Gerät holt seinen Apple-Push-Token (APNs), meldet ihn in Appwrite als Push-Ziel an (Anbieter „Pensum Apple“) und abonniert das Thema „alle“.
+ * Nachrichten an alle schreibst du in der Appwrite Console (Messaging → Messages); die täglichen Erinnerungen sendet die Function `push-daily`.
+ * Die Wünsche (Karteikarten/Mindmap, Uhrzeit) liegen je Gerät in `push_devices`. Alles hier ist Zugabe: Fehler werden als Text gemeldet, nie geworfen. */
 import * as Crypto from 'expo-crypto';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { Models } from 'react-native-appwrite';
-import { databaseId, ownerPermissions, tableIds, tablesDB } from '../backend';
+import { account, databaseId, ownerPermissions, tableIds, tablesDB, messaging } from '../backend';
+import { pushProviderId, pushTopicId } from '../backend/config';
 import { deviceRowId, prefsFromRow, type PushPrefs } from './model';
 
 export { DEFAULT_PUSH_PREFS, hourLabel, stepHour, summary, type PushPrefs } from './model';
@@ -19,6 +21,8 @@ const supported = Platform.OS === 'ios' || Platform.OS === 'android';
 type DeviceRow = Models.Row & { userId: string; token: string; cards: boolean; cardsHour: number; mindmap: boolean; mindmapHour: number };
 export type PushStatus = 'unsupported' | 'denied' | 'undetermined' | 'granted';
 
+const codeOf = (reason: unknown) => (reason as { code?: number } | null)?.code;
+
 export async function pushStatus(): Promise<PushStatus> {
   if (!supported) return 'unsupported';
   try {
@@ -30,16 +34,15 @@ export async function pushStatus(): Promise<PushStatus> {
   }
 }
 
-/** Fragt die Berechtigung an (falls nötig) und liefert den Expo-Push-Token. */
+/** Fragt die Berechtigung an (falls nötig) und liefert den Apple-Push-Token dieses Geräts. */
 export async function requestToken(): Promise<{ token: string } | { error: string }> {
   if (!supported) return { error: 'Benachrichtigungen gibt es nur auf iPhone, iPad und Android.' };
   try {
     let { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());
     if (status !== 'granted') return { error: 'Benachrichtigungen sind für Pensum ausgeschaltet. Du kannst sie in den iOS-Einstellungen unter „Mitteilungen“ erlauben.' };
-    const projectId = (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId;
-    const { data } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
-    return { token: data };
+    const { data } = await Notifications.getDevicePushTokenAsync();
+    return { token: String(data) };
   } catch (reason) {
     return { error: reason instanceof Error ? reason.message : 'Der Benachrichtigungs-Dienst ist gerade nicht erreichbar.' };
   }
@@ -62,18 +65,29 @@ export async function loadDevice(): Promise<PushPrefs | null> {
   }
 }
 
-/** Legt die Zeile dieses Geräts an oder aktualisiert sie (fragt bei Bedarf die Berechtigung an). */
+/** Legt Push-Ziel, Themen-Abo und Zeile dieses Geräts an oder aktualisiert sie (fragt bei Bedarf die Berechtigung an). */
 export async function saveDevice(userId: string, prefs: PushPrefs): Promise<{ ok: true } | { error: string }> {
   const found = await requestToken();
   if ('error' in found) return found;
-  const data = { userId, token: found.token, platform: Platform.OS, ...prefs };
-  const rowId = await rowIdFor(found.token);
+  const id = await rowIdFor(found.token); // gleiche ID für Ziel, Abo und Zeile
   try {
     try {
-      await tablesDB.updateRow({ databaseId, tableId: tableIds.pushDevices, rowId, data });
+      await account.createPushTarget({ targetId: id, identifier: found.token, providerId: pushProviderId });
     } catch (reason) {
-      if ((reason as { code?: number } | null)?.code !== 404) throw reason;
-      await tablesDB.createRow({ databaseId, tableId: tableIds.pushDevices, rowId, data, permissions: ownerPermissions(userId) });
+      if (codeOf(reason) !== 409) throw reason;
+      await account.updatePushTarget({ targetId: id, identifier: found.token });
+    }
+    try {
+      await messaging.createSubscriber({ topicId: pushTopicId, subscriberId: id, targetId: id });
+    } catch (reason) {
+      if (codeOf(reason) !== 409) throw reason; // Abo besteht schon
+    }
+    const data = { userId, token: found.token, targetId: id, platform: Platform.OS, ...prefs };
+    try {
+      await tablesDB.updateRow({ databaseId, tableId: tableIds.pushDevices, rowId: id, data });
+    } catch (reason) {
+      if (codeOf(reason) !== 404) throw reason;
+      await tablesDB.createRow({ databaseId, tableId: tableIds.pushDevices, rowId: id, data, permissions: ownerPermissions(userId) });
     }
     return { ok: true };
   } catch (reason) {
@@ -87,7 +101,10 @@ export async function removeDevice(): Promise<void> {
     if (await pushStatus() !== 'granted') return;
     const found = await requestToken();
     if ('error' in found) return;
-    await tablesDB.deleteRow({ databaseId, tableId: tableIds.pushDevices, rowId: await rowIdFor(found.token) });
+    const id = await rowIdFor(found.token);
+    await messaging.deleteSubscriber({ topicId: pushTopicId, subscriberId: id }).catch(() => undefined);
+    await account.deletePushTarget({ targetId: id }).catch(() => undefined);
+    await tablesDB.deleteRow({ databaseId, tableId: tableIds.pushDevices, rowId: id }).catch(() => undefined);
   } catch {
     // war nicht angemeldet oder offline
   }
